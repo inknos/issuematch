@@ -49,6 +49,7 @@ quote-style = "preserve"
 select = [
     # More stuff here https://docs.astral.sh/ruff/rules/
     "F", # Pyflakes
+    "FAST", # Fastapi
     "E", # Pycodestyle Error
     "W", # Pycodestyle Warning
     "N", # PEP8 Naming

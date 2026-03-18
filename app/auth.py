@@ -2,15 +2,14 @@ from __future__ import annotations
 
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from httpx import AsyncClient
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import BASE_URL, GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, SESSION_SECRET
-from app.database import get_session
+from app.database import SessionDep
 from app.models import User
 
 router = APIRouter()
@@ -45,18 +44,16 @@ async def auth_callback(
     request: Request,
     code: str,
     state: str,
-    session: AsyncSession = Depends(get_session),
+    session: SessionDep,
 ) -> RedirectResponse:
     try:
         _signer.loads(state, max_age=STATE_MAX_AGE)
     except SignatureExpired:
         raise HTTPException(
             status_code=403, detail="OAuth state expired — please try logging in again"
-        )
+        ) from None
     except BadSignature:
-        raise HTTPException(
-            status_code=403, detail="Invalid OAuth state — possible CSRF"
-        )
+        raise HTTPException(status_code=403, detail="Invalid OAuth state — possible CSRF") from None
 
     async with AsyncClient() as client:
         token_resp = await client.post(

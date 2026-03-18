@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import current_user_id
-from app.database import get_session
+from app.database import SessionDep
 from app.models import Issue, Vote
 from app.schemas import PaginatedVotes, VoteCreate, VoteOut, VoteUpdate
 
@@ -49,7 +49,7 @@ async def _next_issue(session: AsyncSession, user_id: int) -> Issue | None:
 @router.get("/vote", response_class=HTMLResponse, response_model=None)
 async def vote_redirect(
     request: Request,
-    session: AsyncSession = Depends(get_session),
+    session: SessionDep,
 ):
     uid = current_user_id(request)
     if uid is None:
@@ -57,9 +57,7 @@ async def vote_redirect(
 
     issue = await _next_issue(session, uid)
     if issue is None:
-        return templates.TemplateResponse(
-            "vote.html", {"request": request, "issue": None}
-        )
+        return templates.TemplateResponse("vote.html", {"request": request, "issue": None})
 
     return RedirectResponse(url=_issue_vote_url(issue), status_code=303)
 
@@ -70,7 +68,7 @@ async def vote_page(
     org: str,
     repo: str,
     number: int,
-    session: AsyncSession = Depends(get_session),
+    session: SessionDep,
 ) -> HTMLResponse:
     uid = current_user_id(request)
     if uid is None:
@@ -103,7 +101,7 @@ async def vote_page(
 @router.post("/vote", response_model=None)
 async def submit_vote(
     request: Request,
-    session: AsyncSession = Depends(get_session),
+    session: SessionDep,
 ):
     uid = current_user_id(request)
     if uid is None:
@@ -143,7 +141,7 @@ async def vote_done(request: Request) -> HTMLResponse:
 @router.get("/votes", response_class=HTMLResponse)
 async def results_page(
     request: Request,
-    session: AsyncSession = Depends(get_session),
+    session: SessionDep,
     sort_by: str = "avg_ranking",
     order: str = "desc",
     page: int = 1,
@@ -178,7 +176,7 @@ async def results_page(
 
 @router.get("/api/votes", response_model=PaginatedVotes)
 async def list_votes(
-    session: AsyncSession = Depends(get_session),
+    session: SessionDep,
     issue_id: str | None = None,
     org: str | None = None,
     repo: str | None = None,
@@ -201,9 +199,7 @@ async def list_votes(
     if user_id is not None:
         base = base.where(Vote.user_id == user_id)
 
-    count_result = await session.execute(
-        select(func.count()).select_from(base.subquery())
-    )
+    count_result = await session.execute(select(func.count()).select_from(base.subquery()))
     total = count_result.scalar_one()
 
     offset = (max(page, 1) - 1) * per_page
@@ -216,7 +212,7 @@ async def list_votes(
 @router.get("/api/users/{user_id}/votes", response_model=list[VoteOut])
 async def get_user_votes(
     user_id: int,
-    session: AsyncSession = Depends(get_session),
+    session: SessionDep,
     issue_id: str | None = None,
 ) -> list[Vote]:
     stmt = select(Vote).where(Vote.user_id == user_id)
@@ -230,7 +226,7 @@ async def get_user_votes(
 async def create_user_vote(
     user_id: int,
     body: VoteCreate,
-    session: AsyncSession = Depends(get_session),
+    session: SessionDep,
 ) -> Vote:
     existing = await session.execute(
         select(Vote).where(Vote.user_id == user_id, Vote.issue_id == body.issue_id)
@@ -248,7 +244,7 @@ async def create_user_vote(
 async def update_user_vote(
     user_id: int,
     body: VoteUpdate,
-    session: AsyncSession = Depends(get_session),
+    session: SessionDep,
 ) -> Vote:
     result = await session.execute(
         select(Vote).where(Vote.user_id == user_id, Vote.issue_id == body.issue_id)
@@ -302,9 +298,7 @@ async def _results_query(
     else:
         base = base.order_by(sort_col.desc().nulls_last())
 
-    count_result = await session.execute(
-        select(func.count()).select_from(base.subquery())
-    )
+    count_result = await session.execute(select(func.count()).select_from(base.subquery()))
     total = count_result.scalar_one()
 
     offset = (max(page, 1) - 1) * per_page

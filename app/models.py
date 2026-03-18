@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 
 from sqlalchemy import (
     CheckConstraint,
@@ -33,7 +33,7 @@ class Issue(Base):
     state: Mapped[str] = mapped_column(String, nullable=False, default="open")
     created_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     fetched_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
+        DateTime, nullable=False, default=lambda: datetime.now(UTC)
     )
 
     votes: Mapped[list[Vote]] = relationship(back_populates="issue")
@@ -62,12 +62,8 @@ class Vote(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id"), nullable=False
-    )
-    issue_id: Mapped[str] = mapped_column(
-        String, ForeignKey("issues.id"), nullable=False
-    )
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
+    issue_id: Mapped[str] = mapped_column(String, ForeignKey("issues.id"), nullable=False)
     ranking: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     user: Mapped[User] = relationship(back_populates="votes")

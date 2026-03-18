@@ -124,9 +124,7 @@ async def test_list_votes_pagination_with_filter(client: AsyncClient, seed_data:
     await _create_vote(client, uid, seed_data["issue_id"], 3)
     await _create_vote(client, uid, seed_data["issue_id_2"], -1)
 
-    resp = await client.get(
-        "/api/votes", params={"org": "acme", "per_page": 1, "page": 1}
-    )
+    resp = await client.get("/api/votes", params={"org": "acme", "per_page": 1, "page": 1})
     data = resp.json()
     assert data["total"] == 2
     assert len(data["items"]) == 1

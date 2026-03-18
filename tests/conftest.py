@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
@@ -11,9 +11,7 @@ from app.models import Base, Issue, User
 
 
 engine = create_async_engine("sqlite+aiosqlite://", echo=False)
-async_test_session = async_sessionmaker(
-    engine, class_=AsyncSession, expire_on_commit=False
-)
+async_test_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
 async def _override_get_session() -> AsyncGenerator[AsyncSession, None]:
@@ -38,8 +36,8 @@ async def session() -> AsyncGenerator[AsyncSession, None]:
 
 @pytest_asyncio.fixture
 async def client() -> AsyncGenerator[AsyncClient, None]:
-    from app.database import get_session
-    from app.main import app
+    from app.database import get_session  # noqa: PLC0415
+    from app.main import app  # noqa: PLC0415
 
     app.dependency_overrides[get_session] = _override_get_session
     transport = ASGITransport(app=app)
@@ -51,9 +49,7 @@ async def client() -> AsyncGenerator[AsyncClient, None]:
 @pytest_asyncio.fixture
 async def seed_data(session: AsyncSession) -> dict:
     """Create a sample User and Issue, return their identifiers."""
-    user = User(
-        github_id=12345, username="testuser", avatar_url=None, access_token=None
-    )
+    user = User(github_id=12345, username="testuser", avatar_url=None, access_token=None)
     session.add(user)
     await session.flush()
 
@@ -67,7 +63,7 @@ async def seed_data(session: AsyncSession) -> dict:
         url="https://github.com/acme/widgets/issues/1",
         labels=["bug"],
         state="open",
-        fetched_at=datetime.now(timezone.utc),
+        fetched_at=datetime.now(UTC),
     )
     session.add(issue)
 
@@ -81,7 +77,7 @@ async def seed_data(session: AsyncSession) -> dict:
         url="https://github.com/acme/gadgets/issues/10",
         labels=[],
         state="open",
-        fetched_at=datetime.now(timezone.utc),
+        fetched_at=datetime.now(UTC),
     )
     session.add(issue2)
     await session.commit()

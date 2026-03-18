@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 
 import httpx
 from sqlalchemy import select
@@ -37,9 +37,7 @@ async def fetch_and_store(
 
     async with httpx.AsyncClient(headers=headers, timeout=30) as client:
         while True:
-            resp = await client.get(
-                f"{GITHUB_API}/repos/{org}/{repo}/issues", params=params
-            )
+            resp = await client.get(f"{GITHUB_API}/repos/{org}/{repo}/issues", params=params)
             resp.raise_for_status()
             items = resp.json()
             if not items:
@@ -51,15 +49,11 @@ async def fetch_and_store(
                         continue
 
                     issue_id = f"{org}/{repo}#{item['number']}"
-                    existing = await session.execute(
-                        select(Issue).where(Issue.id == issue_id)
-                    )
+                    existing = await session.execute(select(Issue).where(Issue.id == issue_id))
 
                     created = None
                     if item.get("created_at"):
-                        created = datetime.fromisoformat(
-                            item["created_at"].replace("Z", "+00:00")
-                        )
+                        created = datetime.fromisoformat(item["created_at"].replace("Z", "+00:00"))
 
                     label_names = [lbl["name"] for lbl in item.get("labels", [])]
 
@@ -76,7 +70,7 @@ async def fetch_and_store(
                             labels=label_names,
                             state=item["state"],
                             created_at=created,
-                            fetched_at=datetime.now(timezone.utc),
+                            fetched_at=datetime.now(UTC),
                         )
                         session.add(row)
                     else:
@@ -86,7 +80,7 @@ async def fetch_and_store(
                         row.labels = label_names
                         row.state = item["state"]
                         row.created_at = created
-                        row.fetched_at = datetime.now(timezone.utc)
+                        row.fetched_at = datetime.now(UTC)
 
                     upserted += 1
 
@@ -107,9 +101,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    count = asyncio.run(
-        fetch_and_store(args.org, args.repo, labels=args.labels, state=args.state)
-    )
+    count = asyncio.run(fetch_and_store(args.org, args.repo, labels=args.labels, state=args.state))
     print(f"Upserted {count} issues from {args.org}/{args.repo}")
 
 

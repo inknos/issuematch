@@ -12,7 +12,5 @@ GITHUB_CLIENT_ID: str = os.environ.get("GITHUB_CLIENT_ID", "")
 GITHUB_CLIENT_SECRET: str = os.environ.get("GITHUB_CLIENT_SECRET", "")
 GITHUB_TOKEN: str = os.environ.get("GITHUB_TOKEN", "")
 SESSION_SECRET: str = os.environ.get("SESSION_SECRET", "change-me")
-DATABASE_URL: str = os.environ.get(
-    "DATABASE_URL", "sqlite+aiosqlite:///./issuematch.db"
-)
+DATABASE_URL: str = os.environ.get("DATABASE_URL", "sqlite+aiosqlite:///./issuematch.db")
 BASE_URL: str = os.environ.get("BASE_URL", "http://localhost:8000")
