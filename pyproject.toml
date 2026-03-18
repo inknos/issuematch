@@ -54,12 +54,54 @@ select = [
     "W", # Pycodestyle Warning
     "N", # PEP8 Naming
     "UP", # Pyupgrade
-    # TODO "ANN",
-    # TODO "S", # Bandit
+    "ANN", # flake8-annotations
+    "S", # Bandit
     "B", # Bugbear
     "A", # flake-8-builtins
     "YTT", # flake-8-2020
     "PLC", # Pylint Convention
     "PLE", # Pylint Error
     "PLW", # Pylint Warning
+    "I", # isort
+    "C4", # flake8-comprehensions
+    "SIM", # flake8-simplify
+    "PIE", # flake8-pie
+    "RET", # flake8-return
+    "RSE", # flake8-raise
+    "C90", # mccabe complexity
+    "PERF", # Perflint
+    "FURB", # refurb
+    "RUF", # Ruff-specific rules
+    "T10", # flake8-debugger
+    "T20", # flake8-print
+    "ISC", # flake8-implicit-str-concat
+    "PGH", # pygrep-hooks
+    "FLY", # flynt (prefer f-strings)
+    "FA", # flake8-future-annotations
+    # TODO "PLR", # Pylint Refactor — too many args in FastAPI routes, magic values in tests
+    "ASYNC", # flake8-async
+    "TRY", # tryceratops
+    "PT", # flake8-pytest-style
+    "DTZ", # flake8-datetimez
+    # TODO "TC", # flake8-type-checking — SessionDep is runtime-evaluated by FastAPI DI
+    "BLE", # flake8-blind-except
+    "EM", # flake8-errmsg
+    "PTH", # flake8-use-pathlib
+    # TODO "D", # pydocstyle — requires docstrings on all public modules/classes/functions
+    "FBT", # flake8-boolean-trap
+    "ERA", # eradicate (commented-out code)
+    "INP", # flake8-no-pep420
+    "Q", # flake8-quotes
+    "ARG", # flake8-unused-arguments
+    "COM", # flake8-commas
+    "ICN", # flake8-import-conventions
+    "SLF", # flake8-self
+    "G", # flake8-logging-format
+    "LOG", # flake8-logging
+    "EXE", # flake8-executable
+    "TID", # flake8-tidy-imports
 ]
+
+[tool.ruff.lint.per-file-ignores]
+"fetch_issues.py" = ["T20"]  # CLI script, print is intentional
+"tests/**" = ["S101", "INP001"]  # assert + implicit namespace are standard in pytest

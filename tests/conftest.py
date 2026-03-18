@@ -1,14 +1,12 @@
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 
 import pytest_asyncio
+from app.models import Base, Issue, User
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-
-from app.models import Base, Issue, User
-
 
 engine = create_async_engine("sqlite+aiosqlite://", echo=False)
 async_test_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
@@ -20,7 +18,7 @@ async def _override_get_session() -> AsyncGenerator[AsyncSession, None]:
 
 
 @pytest_asyncio.fixture(autouse=True)
-async def setup_db():
+async def setup_db() -> AsyncGenerator[None, None]:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield

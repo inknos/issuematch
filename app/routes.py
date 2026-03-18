@@ -36,7 +36,7 @@ async def _next_issue(session: AsyncSession, user_id: int) -> Issue | None:
         select(Issue)
         .where(Issue.id.notin_(select(Vote.issue_id).where(Vote.user_id == user_id)))
         .order_by(func.random())
-        .limit(1)
+        .limit(1),
     )
     return result.scalar_one_or_none()
 
@@ -50,7 +50,7 @@ async def _next_issue(session: AsyncSession, user_id: int) -> Issue | None:
 async def vote_redirect(
     request: Request,
     session: SessionDep,
-):
+) -> HTMLResponse | RedirectResponse:
     uid = current_user_id(request)
     if uid is None:
         return RedirectResponse(url="/login", status_code=303)
@@ -82,7 +82,7 @@ async def vote_page(
         raise HTTPException(status_code=404, detail="Issue not found")
 
     vote_result = await session.execute(
-        select(Vote).where(Vote.user_id == uid, Vote.issue_id == issue_id)
+        select(Vote).where(Vote.user_id == uid, Vote.issue_id == issue_id),
     )
     existing_vote = vote_result.scalar_one_or_none()
 
@@ -102,7 +102,7 @@ async def vote_page(
 async def submit_vote(
     request: Request,
     session: SessionDep,
-):
+) -> RedirectResponse:
     uid = current_user_id(request)
     if uid is None:
         return RedirectResponse(url="/login", status_code=303)
@@ -114,7 +114,7 @@ async def submit_vote(
     if issue_id and ranking_raw is not None:
         ranking = int(ranking_raw)
         existing = await session.execute(
-            select(Vote).where(Vote.user_id == uid, Vote.issue_id == str(issue_id))
+            select(Vote).where(Vote.user_id == uid, Vote.issue_id == str(issue_id)),
         )
         vote = existing.scalar_one_or_none()
         if vote is None:
@@ -152,7 +152,11 @@ async def results_page(
         return RedirectResponse(url="/login", status_code=303)  # type: ignore[return-value]
 
     rows, total = await _results_query(
-        session, sort_by=sort_by, order=order, page=page, per_page=per_page
+        session,
+        sort_by=sort_by,
+        order=order,
+        page=page,
+        per_page=per_page,
     )
     total_pages = max(1, -(-total // per_page))  # ceil division
     return templates.TemplateResponse(
@@ -229,7 +233,7 @@ async def create_user_vote(
     session: SessionDep,
 ) -> Vote:
     existing = await session.execute(
-        select(Vote).where(Vote.user_id == user_id, Vote.issue_id == body.issue_id)
+        select(Vote).where(Vote.user_id == user_id, Vote.issue_id == body.issue_id),
     )
     if existing.scalar_one_or_none() is not None:
         raise HTTPException(status_code=409, detail="Vote already exists")
@@ -247,7 +251,7 @@ async def update_user_vote(
     session: SessionDep,
 ) -> Vote:
     result = await session.execute(
-        select(Vote).where(Vote.user_id == user_id, Vote.issue_id == body.issue_id)
+        select(Vote).where(Vote.user_id == user_id, Vote.issue_id == body.issue_id),
     )
     vote = result.scalar_one_or_none()
     if vote is None:

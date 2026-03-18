@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import httpx
 import pytest
 from httpx import AsyncClient
-
 
 pytestmark = pytest.mark.asyncio
 
@@ -12,7 +12,12 @@ pytestmark = pytest.mark.asyncio
 # ---------------------------------------------------------------------------
 
 
-async def _create_vote(client: AsyncClient, uid: int, issue_id: str, ranking: int):
+async def _create_vote(
+    client: AsyncClient,
+    uid: int,
+    issue_id: str,
+    ranking: int,
+) -> httpx.Response:
     resp = await client.post(
         f"/api/users/{uid}/votes",
         json={"issue_id": issue_id, "ranking": ranking},
@@ -26,14 +31,14 @@ async def _create_vote(client: AsyncClient, uid: int, issue_id: str, ranking: in
 # ---------------------------------------------------------------------------
 
 
-async def test_list_votes_empty(client: AsyncClient):
+async def test_list_votes_empty(client: AsyncClient) -> None:
     resp = await client.get("/api/votes")
     assert resp.status_code == 200
     data = resp.json()
     assert data == {"items": [], "total": 0, "page": 1, "per_page": 20}
 
 
-async def test_list_votes_returns_all(client: AsyncClient, seed_data: dict):
+async def test_list_votes_returns_all(client: AsyncClient, seed_data: dict) -> None:
     uid = seed_data["user_id"]
     await _create_vote(client, uid, seed_data["issue_id"], 2)
     await _create_vote(client, uid, seed_data["issue_id_2"], -1)
@@ -45,7 +50,7 @@ async def test_list_votes_returns_all(client: AsyncClient, seed_data: dict):
     assert len(data["items"]) == 2
 
 
-async def test_list_votes_filter_by_issue_id(client: AsyncClient, seed_data: dict):
+async def test_list_votes_filter_by_issue_id(client: AsyncClient, seed_data: dict) -> None:
     uid = seed_data["user_id"]
     await _create_vote(client, uid, seed_data["issue_id"], 3)
     await _create_vote(client, uid, seed_data["issue_id_2"], -1)
@@ -57,7 +62,7 @@ async def test_list_votes_filter_by_issue_id(client: AsyncClient, seed_data: dic
     assert data["items"][0]["issue_id"] == seed_data["issue_id"]
 
 
-async def test_list_votes_filter_by_org(client: AsyncClient, seed_data: dict):
+async def test_list_votes_filter_by_org(client: AsyncClient, seed_data: dict) -> None:
     uid = seed_data["user_id"]
     await _create_vote(client, uid, seed_data["issue_id"], 1)
 
@@ -70,7 +75,7 @@ async def test_list_votes_filter_by_org(client: AsyncClient, seed_data: dict):
     assert resp.json()["total"] == 0
 
 
-async def test_list_votes_filter_by_repo(client: AsyncClient, seed_data: dict):
+async def test_list_votes_filter_by_repo(client: AsyncClient, seed_data: dict) -> None:
     uid = seed_data["user_id"]
     await _create_vote(client, uid, seed_data["issue_id"], 1)
     await _create_vote(client, uid, seed_data["issue_id_2"], -2)
@@ -82,7 +87,7 @@ async def test_list_votes_filter_by_repo(client: AsyncClient, seed_data: dict):
     assert data["items"][0]["issue_id"] == seed_data["issue_id"]
 
 
-async def test_list_votes_filter_by_user_id(client: AsyncClient, seed_data: dict):
+async def test_list_votes_filter_by_user_id(client: AsyncClient, seed_data: dict) -> None:
     uid = seed_data["user_id"]
     await _create_vote(client, uid, seed_data["issue_id"], 1)
 
@@ -95,7 +100,7 @@ async def test_list_votes_filter_by_user_id(client: AsyncClient, seed_data: dict
     assert resp.json()["total"] == 0
 
 
-async def test_list_votes_pagination(client: AsyncClient, seed_data: dict):
+async def test_list_votes_pagination(client: AsyncClient, seed_data: dict) -> None:
     uid = seed_data["user_id"]
     await _create_vote(client, uid, seed_data["issue_id"], 2)
     await _create_vote(client, uid, seed_data["issue_id_2"], -1)
@@ -119,7 +124,7 @@ async def test_list_votes_pagination(client: AsyncClient, seed_data: dict):
     assert len(data["items"]) == 0
 
 
-async def test_list_votes_pagination_with_filter(client: AsyncClient, seed_data: dict):
+async def test_list_votes_pagination_with_filter(client: AsyncClient, seed_data: dict) -> None:
     uid = seed_data["user_id"]
     await _create_vote(client, uid, seed_data["issue_id"], 3)
     await _create_vote(client, uid, seed_data["issue_id_2"], -1)
@@ -130,19 +135,17 @@ async def test_list_votes_pagination_with_filter(client: AsyncClient, seed_data:
     assert len(data["items"]) == 1
 
 
-# ---------------------------------------------------------------------------
-# GET /api/users/{user_id}/votes
-# ---------------------------------------------------------------------------
+# --- User votes (GET) ---
 
 
-async def test_get_user_votes_empty(client: AsyncClient, seed_data: dict):
+async def test_get_user_votes_empty(client: AsyncClient, seed_data: dict) -> None:
     uid = seed_data["user_id"]
     resp = await client.get(f"/api/users/{uid}/votes")
     assert resp.status_code == 200
     assert resp.json() == []
 
 
-async def test_get_user_votes_all(client: AsyncClient, seed_data: dict):
+async def test_get_user_votes_all(client: AsyncClient, seed_data: dict) -> None:
     uid = seed_data["user_id"]
     await _create_vote(client, uid, seed_data["issue_id"], 3)
     await _create_vote(client, uid, seed_data["issue_id_2"], -1)
@@ -152,7 +155,7 @@ async def test_get_user_votes_all(client: AsyncClient, seed_data: dict):
     assert len(resp.json()) == 2
 
 
-async def test_get_user_votes_filter_by_issue_id(client: AsyncClient, seed_data: dict):
+async def test_get_user_votes_filter_by_issue_id(client: AsyncClient, seed_data: dict) -> None:
     uid = seed_data["user_id"]
     await _create_vote(client, uid, seed_data["issue_id"], 2)
     await _create_vote(client, uid, seed_data["issue_id_2"], -3)
@@ -168,12 +171,10 @@ async def test_get_user_votes_filter_by_issue_id(client: AsyncClient, seed_data:
     assert data[0]["ranking"] == -3
 
 
-# ---------------------------------------------------------------------------
-# POST /api/users/{user_id}/votes
-# ---------------------------------------------------------------------------
+# --- User votes (POST) ---
 
 
-async def test_create_vote(client: AsyncClient, seed_data: dict):
+async def test_create_vote(client: AsyncClient, seed_data: dict) -> None:
     uid = seed_data["user_id"]
     resp = await client.post(
         f"/api/users/{uid}/votes",
@@ -187,7 +188,7 @@ async def test_create_vote(client: AsyncClient, seed_data: dict):
     assert "id" in data
 
 
-async def test_create_vote_null_ranking(client: AsyncClient, seed_data: dict):
+async def test_create_vote_null_ranking(client: AsyncClient, seed_data: dict) -> None:
     uid = seed_data["user_id"]
     resp = await client.post(
         f"/api/users/{uid}/votes",
@@ -197,7 +198,7 @@ async def test_create_vote_null_ranking(client: AsyncClient, seed_data: dict):
     assert resp.json()["ranking"] is None
 
 
-async def test_create_vote_duplicate_409(client: AsyncClient, seed_data: dict):
+async def test_create_vote_duplicate_409(client: AsyncClient, seed_data: dict) -> None:
     uid = seed_data["user_id"]
     await _create_vote(client, uid, seed_data["issue_id"], 1)
     resp = await client.post(
@@ -207,12 +208,10 @@ async def test_create_vote_duplicate_409(client: AsyncClient, seed_data: dict):
     assert resp.status_code == 409
 
 
-# ---------------------------------------------------------------------------
-# PUT /api/users/{user_id}/votes
-# ---------------------------------------------------------------------------
+# --- User votes (PUT) ---
 
 
-async def test_update_vote(client: AsyncClient, seed_data: dict):
+async def test_update_vote(client: AsyncClient, seed_data: dict) -> None:
     uid = seed_data["user_id"]
     await _create_vote(client, uid, seed_data["issue_id"], 1)
 
@@ -226,7 +225,7 @@ async def test_update_vote(client: AsyncClient, seed_data: dict):
     assert data["issue_id"] == seed_data["issue_id"]
 
 
-async def test_update_vote_not_found(client: AsyncClient, seed_data: dict):
+async def test_update_vote_not_found(client: AsyncClient, seed_data: dict) -> None:
     uid = seed_data["user_id"]
     resp = await client.put(
         f"/api/users/{uid}/votes",

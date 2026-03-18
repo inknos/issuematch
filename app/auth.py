@@ -15,7 +15,7 @@ from app.models import User
 router = APIRouter()
 
 GITHUB_AUTHORIZE_URL = "https://github.com/login/oauth/authorize"
-GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token"
+GITHUB_OAUTH_URL = "https://github.com/login/oauth/access_token"
 GITHUB_USER_URL = "https://api.github.com/user"
 
 REDIRECT_URI = f"{BASE_URL}/auth/callback"
@@ -34,7 +34,7 @@ async def login() -> RedirectResponse:
             "redirect_uri": REDIRECT_URI,
             "scope": "read:user",
             "state": state,
-        }
+        },
     )
     return RedirectResponse(f"{GITHUB_AUTHORIZE_URL}?{params}")
 
@@ -50,14 +50,15 @@ async def auth_callback(
         _signer.loads(state, max_age=STATE_MAX_AGE)
     except SignatureExpired:
         raise HTTPException(
-            status_code=403, detail="OAuth state expired — please try logging in again"
+            status_code=403,
+            detail="OAuth state expired — please try logging in again",
         ) from None
     except BadSignature:
         raise HTTPException(status_code=403, detail="Invalid OAuth state — possible CSRF") from None
 
     async with AsyncClient() as client:
         token_resp = await client.post(
-            GITHUB_TOKEN_URL,
+            GITHUB_OAUTH_URL,
             data={
                 "client_id": GITHUB_CLIENT_ID,
                 "client_secret": GITHUB_CLIENT_SECRET,

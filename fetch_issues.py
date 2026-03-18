@@ -5,14 +5,13 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 
 import httpx
-from sqlalchemy import select
-
 from app.config import GITHUB_TOKEN
 from app.database import async_session, init_db
 from app.models import Issue
+from sqlalchemy import select
 
 GITHUB_API = "https://api.github.com"
 
@@ -53,7 +52,7 @@ async def fetch_and_store(
 
                     created = None
                     if item.get("created_at"):
-                        created = datetime.fromisoformat(item["created_at"].replace("Z", "+00:00"))
+                        created = datetime.fromisoformat(item["created_at"])
 
                     label_names = [lbl["name"] for lbl in item.get("labels", [])]
 
@@ -97,7 +96,10 @@ def main() -> None:
     parser.add_argument("--repo", required=True, help="Repository name")
     parser.add_argument("--labels", default=None, help="Comma-separated label filter")
     parser.add_argument(
-        "--state", default="open", choices=["open", "closed", "all"], help="Issue state"
+        "--state",
+        default="open",
+        choices=["open", "closed", "all"],
+        help="Issue state",
     )
     args = parser.parse_args()
 
