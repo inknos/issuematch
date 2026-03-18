@@ -13,7 +13,7 @@
     {% set arrow = "" %}
   {% endif %}
   <a href="/votes?sort_by={{ column }}&order={{ next_order }}&page=1&per_page={{ per_page }}"
-     class="text-decoration-none text-reset">{{ label }}{{ arrow }}</a>
+     class="text-decoration-none text-reset text-nowrap">{{ label }}{{ arrow }}</a>
 {% endmacro %}
 
 {% block content %}
