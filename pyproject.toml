@@ -26,3 +26,39 @@ dev = [
 [build-system]
 requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"
+
+[tool.ruff]
+line-length = 100
+src = ["app"]
+
+# This is the section where Black is mostly replaced with Ruff
+[tool.ruff.format]
+exclude = [
+    ".git",
+    ".history",
+    ".tox",
+    ".venv",
+    "build",
+    "dist",
+    "docs",
+    "hack",
+]
+quote-style = "preserve"
+
+[tool.ruff.lint]
+select = [
+    # More stuff here https://docs.astral.sh/ruff/rules/
+    "F", # Pyflakes
+    "E", # Pycodestyle Error
+    "W", # Pycodestyle Warning
+    "N", # PEP8 Naming
+    "UP", # Pyupgrade
+    # TODO "ANN",
+    # TODO "S", # Bandit
+    "B", # Bugbear
+    "A", # flake-8-builtins
+    "YTT", # flake-8-2020
+    "PLC", # Pylint Convention
+    "PLE", # Pylint Error
+    "PLW", # Pylint Warning
+]
