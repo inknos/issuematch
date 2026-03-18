@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>
+    (function() {
+      var stored = localStorage.getItem("theme");
+      var theme = stored || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      document.documentElement.setAttribute("data-bs-theme", theme);
+    })();
+  </script>
+  <title>{% block title %}IssueMatch{% endblock %}</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css"
+        rel="stylesheet"
+        integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB"
+        crossorigin="anonymous">
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://unpkg.com/htmx.org@2.0.4"
+          integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+"
+          crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+  <nav class="navbar navbar-expand-sm bg-body-tertiary mb-4">
+    <div class="container">
+      <a class="navbar-brand fw-bold" href="/vote">IssueMatch</a>
+      <div class="d-flex align-items-center gap-3">
+        <a class="nav-link" href="/votes">Votes</a>
+        {% if request.session.get("username") %}
+          <span class="text-muted small">{{ request.session["username"] }}</span>
+          <a class="btn btn-outline-secondary btn-sm" href="/logout">Logout</a>
+        {% endif %}
+        <button id="theme-toggle" class="btn btn-sm btn-outline-secondary" type="button" title="Toggle dark/light mode">
+          <span id="theme-icon"></span>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container-md">
+    {% block content %}{% endblock %}
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
+          integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
+          crossorigin="anonymous"></script>
+  <script>
+    (function () {
+      var icon = document.getElementById("theme-icon");
+      var btn = document.getElementById("theme-toggle");
+
+      function current() {
+        return document.documentElement.getAttribute("data-bs-theme");
+      }
+      function setIcon() {
+        icon.textContent = current() === "dark" ? "\u2600\uFE0F" : "\uD83C\uDF19";
+      }
+      setIcon();
+
+      btn.addEventListener("click", function () {
+        var next = current() === "dark" ? "light" : "dark";
+        document.documentElement.setAttribute("data-bs-theme", next);
+        localStorage.setItem("theme", next);
+        setIcon();
+      });
+
+      matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function (e) {
+        if (!localStorage.getItem("theme")) {
+          document.documentElement.setAttribute("data-bs-theme", e.matches ? "dark" : "light");
+          setIcon();
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

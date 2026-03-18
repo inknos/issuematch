@@ -1,0 +1,153 @@
+/* Vote card layout */
+.vote-row {
+  min-height: 460px;
+}
+
+.issue-card {
+  min-height: 420px;
+}
+
+.issue-body {
+  white-space: normal;
+  font-size: 0.9rem;
+  flex: 1 1 0;
+  max-height: 250px;
+  overflow-y: hidden;
+}
+
+.issue-body.expanded {
+  max-height: calc(100vh - 420px);
+  overflow-y: auto;
+}
+
+/* Rendered Markdown content */
+.issue-body img { max-width: 100%; height: auto; }
+.issue-body pre {
+  background: var(--bs-tertiary-bg, rgba(0, 0, 0, 0.05));
+  padding: 0.75rem;
+  border-radius: 6px;
+  overflow-x: auto;
+  font-size: 0.85rem;
+}
+.issue-body code {
+  font-size: 0.85em;
+}
+.issue-body h1,
+.issue-body h2,
+.issue-body h3 {
+  font-size: 1.1rem;
+  margin-top: 0.75rem;
+}
+.issue-body blockquote {
+  border-left: 3px solid var(--bs-border-color, rgba(0, 0, 0, 0.15));
+  padding-left: 0.75rem;
+  color: inherit;
+  opacity: 0.8;
+}
+
+/* Expand / collapse full-width button */
+.expand-btn {
+  margin-top: 0.5rem;
+  padding: 0.5rem 0;
+  border: none;
+  border-top: 1px solid var(--bs-border-color, rgba(0, 0, 0, 0.15));
+  border-radius: 0;
+  color: var(--bs-secondary-color, #6c757d);
+  background-color: transparent;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+.expand-btn:hover {
+  color: var(--bs-body-color, #212529);
+  background-color: var(--bs-tertiary-bg, rgba(0, 0, 0, 0.03));
+}
+.expand-btn .chevron {
+  font-size: 0.7rem;
+  line-height: 1;
+  transition: transform 0.25s ease;
+}
+
+/* Vote buttons — phone keypad style, fill the column */
+.btn-vote {
+  width: 100%;
+  aspect-ratio: 1;
+  font-size: 1.4rem;
+  font-weight: 700;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(var(--bs-emphasis-color-rgb, 0, 0, 0), 0.1);
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.btn-vote:active {
+  transform: scale(0.93);
+  box-shadow: 0 1px 2px rgba(var(--bs-emphasis-color-rgb, 0, 0, 0), 0.15);
+}
+
+.vote-col {
+  max-width: 120px;
+}
+
+.vote-col form {
+  width: 100%;
+}
+
+/* Entrance animation: card slides in from the top on each page load */
+.vote-card-wrapper {
+  animation: slide-in-from-top 0.4s ease-out both;
+}
+
+@keyframes slide-in-from-top {
+  from {
+    opacity: 0;
+    transform: translateY(-40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Exit animation: card slides down and fades out after voting */
+.vote-card-wrapper.exiting {
+  animation: slide-out-down 0.35s ease-in forwards;
+}
+
+@keyframes slide-out-down {
+  to {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+}
+
+/* Mobile layout */
+@media (max-width: 767.98px) {
+  .vote-row {
+    min-height: auto;
+    --bs-gutter-x: 0;
+  }
+  .issue-card {
+    min-height: auto;
+    border-radius: 0.5rem;
+  }
+  .issue-card .card-body {
+    padding: 0.75rem;
+  }
+  .vote-col {
+    max-width: none;
+    margin-top: 0.75rem;
+  }
+  .btn-vote {
+    aspect-ratio: auto;
+    width: auto;
+    padding: 0.5rem 1rem;
+    font-size: 1rem;
+  }
+  .issue-body {
+    max-height: calc(100vh - 480px);
+  }
+  .issue-body.expanded {
+    max-height: calc(100vh - 480px);
+  }
+}

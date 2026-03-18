@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Vote — IssueMatch{% endblock %}
+
+{% block content %}
+<div id="card-container">
+  {% if issue %}
+    {% include "vote/card.html" %}
+  {% else %}
+    {% include "vote/done.html" %}
+  {% endif %}
+</div>
+{% endblock %}

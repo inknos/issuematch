@@ -1,0 +1,133 @@
+<div class="vote-card-wrapper">
+  <div class="row align-items-start justify-content-center vote-row gx-2">
+
+    <!-- Negative votes -->
+    <div class="col col-md-2 order-2 order-md-1 d-flex flex-row flex-md-column justify-content-center justify-content-md-start align-items-center gap-2 vote-col">
+      {% for score in [-3, -2, -1] %}
+      <form method="post" action="/vote">
+        <input type="hidden" name="issue_id" value="{{ issue.id }}">
+        <input type="hidden" name="ranking" value="{{ score }}">
+        <button type="submit" class="btn {{ 'btn-danger' if score == existing_ranking else 'btn-outline-danger' }} btn-vote" data-score="{{ score }}">{{ score }}</button>
+      </form>
+      {% endfor %}
+    </div>
+
+    <!-- Issue card -->
+    <div class="col-12 col-md-8 order-1 order-md-2">
+      <div class="card issue-card h-100">
+        <div class="card-body d-flex flex-column">
+          <h5 class="card-title">{{ issue.title }}</h5>
+
+          {% if issue.labels %}
+          <div class="mb-2">
+            {% for label in issue.labels %}
+            <span class="badge bg-secondary me-1">{{ label }}</span>
+            {% endfor %}
+          </div>
+          {% endif %}
+
+          <div class="issue-body-wrap flex-grow-1">
+            <div class="card-text text-muted issue-body" id="issue-body-display"></div>
+            <script type="text/plain" id="raw-body">{{ (issue.body or "No description provided.")|e }}</script>
+            <button type="button" class="expand-btn btn btn-light btn-sm w-100" id="expand-toggle" title="Expand / Collapse">
+              <span class="chevron">&#9660;</span>
+            </button>
+          </div>
+
+          <div class="mt-auto d-flex justify-content-between align-items-center">
+            <small class="text-muted">{{ issue.org }}/{{ issue.repo }}#{{ issue.number }}</small>
+            <a href="{{ issue.url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary">
+              View on GitHub
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Positive votes -->
+    <div class="col col-md-2 order-3 d-flex flex-row-reverse flex-md-column justify-content-center justify-content-md-start align-items-center gap-2 vote-col">
+      {% for score in [3, 2, 1] %}
+      <form method="post" action="/vote">
+        <input type="hidden" name="issue_id" value="{{ issue.id }}">
+        <input type="hidden" name="ranking" value="{{ score }}">
+        <button type="submit" class="btn {{ 'btn-success' if score == existing_ranking else 'btn-outline-success' }} btn-vote" data-score="{{ score }}">+{{ score }}</button>
+      </form>
+      {% endfor %}
+    </div>
+
+  </div>
+
+  <!-- Skip -->
+  <div class="row mt-3">
+    <div class="col-12 col-md-8 offset-md-2">
+      <form method="post" action="/vote">
+        <input type="hidden" name="issue_id" value="{{ issue.id }}">
+        <button type="submit" class="btn btn-secondary w-100">Skip</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    let submitting = false;
+
+    function castVote(btn) {
+      if (submitting) return;
+      submitting = true;
+
+      // Highlight: swap outline to filled
+      if (btn.classList.contains("btn-outline-danger")) {
+        btn.classList.replace("btn-outline-danger", "btn-danger");
+      } else if (btn.classList.contains("btn-outline-success")) {
+        btn.classList.replace("btn-outline-success", "btn-success");
+      }
+
+      // Exit animation on the whole card
+      const wrapper = document.querySelector(".vote-card-wrapper");
+      wrapper.style.animation = "none";
+      void wrapper.offsetHeight;
+      wrapper.style.animation = "";
+      wrapper.addEventListener("animationend", function (e) {
+        if (e.animationName === "slide-out-down") {
+          btn.closest("form").submit();
+        }
+      }, { once: true });
+      wrapper.classList.add("exiting");
+    }
+
+    // Intercept vote button clicks
+    document.querySelectorAll(".btn-vote[data-score]").forEach(function (btn) {
+      btn.addEventListener("click", function (e) {
+        e.preventDefault();
+        castVote(btn);
+      });
+    });
+
+    // Keyboard shortcuts
+    document.addEventListener("keydown", function (e) {
+      const keyMap = {"1": 1, "2": 2, "3": 3, "!": -1, "@": -2, "#": -3};
+      const score = keyMap[e.key];
+      if (score === undefined) return;
+      const btn = document.querySelector(`button[data-score="${score}"]`);
+      if (btn) castVote(btn);
+    });
+
+    // Expand / collapse (always Markdown)
+    (function () {
+      const display = document.getElementById("issue-body-display");
+      const rawBody = document.getElementById("raw-body").textContent;
+      const toggle = document.getElementById("expand-toggle");
+      const chevron = toggle.querySelector(".chevron");
+      let expanded = false;
+
+      display.innerHTML = marked.parse(rawBody);
+
+      toggle.addEventListener("click", function () {
+        expanded = !expanded;
+        display.classList.toggle("expanded", expanded);
+        chevron.innerHTML = expanded ? "&#9650;" : "&#9660;";
+      });
+    })();
+  })();
+</script>

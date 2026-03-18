@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Results — IssueMatch{% endblock %}
+
+{% macro sort_link(column, label) %}
+  {% if sort_by == column and order == "desc" %}
+    {% set next_order = "asc" %}
+    {% set arrow = " ▼" %}
+  {% elif sort_by == column and order == "asc" %}
+    {% set next_order = "desc" %}
+    {% set arrow = " ▲" %}
+  {% else %}
+    {% set next_order = "desc" %}
+    {% set arrow = "" %}
+  {% endif %}
+  <a href="/votes?sort_by={{ column }}&order={{ next_order }}&page=1&per_page={{ per_page }}"
+     class="text-decoration-none text-reset">{{ label }}{{ arrow }}</a>
+{% endmacro %}
+
+{% block content %}
+<h2 class="mb-4">Results</h2>
+
+{% if results %}
+<div class="table-responsive">
+  <table class="table table-striped align-middle">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>{{ sort_link("title", "Issue") }}</th>
+        <th class="text-end">{{ sort_link("avg_ranking", "Avg") }}</th>
+        <th class="text-end">{{ sort_link("vote_count", "Votes") }}</th>
+        <th class="text-center">Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in results %}
+      <tr>
+        <td>{{ (page - 1) * per_page + loop.index }}</td>
+        <td>
+          <a href="{{ r.url }}" target="_blank" rel="noopener">{{ r.title }}</a>
+          <small class="text-muted d-block">{{ r.issue_id }}</small>
+        </td>
+        <td class="text-end">
+          {% if r.avg_ranking is not none %}
+            <span class="badge {% if r.avg_ranking > 0 %}bg-success{% elif r.avg_ranking < 0 %}bg-danger{% else %}bg-secondary{% endif %}">
+              {{ r.avg_ranking }}
+            </span>
+          {% else %}
+            <span class="text-muted">—</span>
+          {% endif %}
+        </td>
+        <td class="text-end">{{ r.vote_count }}</td>
+        <td class="text-center">
+          <a href="/vote/{{ r.org }}/{{ r.repo }}/{{ r.number }}"
+             class="btn btn-sm btn-outline-primary">Vote</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if total_pages > 1 %}
+<nav>
+  <ul class="pagination justify-content-center">
+    <li class="page-item {% if page <= 1 %}disabled{% endif %}">
+      <a class="page-link"
+         href="/votes?sort_by={{ sort_by }}&order={{ order }}&page={{ page - 1 }}&per_page={{ per_page }}">
+        &laquo; Prev
+      </a>
+    </li>
+
+    {% for p in range(1, total_pages + 1) %}
+      {% if p == page %}
+        <li class="page-item active"><span class="page-link">{{ p }}</span></li>
+      {% elif p <= 3 or p > total_pages - 2 or (p >= page - 1 and p <= page + 1) %}
+        <li class="page-item">
+          <a class="page-link"
+             href="/votes?sort_by={{ sort_by }}&order={{ order }}&page={{ p }}&per_page={{ per_page }}">
+            {{ p }}
+          </a>
+        </li>
+      {% elif p == 4 or p == total_pages - 2 %}
+        <li class="page-item disabled"><span class="page-link">…</span></li>
+      {% endif %}
+    {% endfor %}
+
+    <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
+      <a class="page-link"
+         href="/votes?sort_by={{ sort_by }}&order={{ order }}&page={{ page + 1 }}&per_page={{ per_page }}">
+        Next &raquo;
+      </a>
+    </li>
+  </ul>
+</nav>
+{% endif %}
+
+{% else %}
+<p class="text-muted">No issues yet. Run <code>python fetch_issues.py</code> to import some.</p>
+{% endif %}
+{% endblock %}
