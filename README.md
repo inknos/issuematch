@@ -1,6 +1,6 @@
 # IssueMatch
 
-Rank GitHub issues with your team. Each member votes on issues (-3 to +3), Tinder-style, and the results are aggregated into a leaderboard.
+Gamify your issue backlog review. Each team member votes on issues (-3 to +3) one at a time, and the results are aggregated into a leaderboard.
 
 ## Prerequisites
 
