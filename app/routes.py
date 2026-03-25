@@ -43,7 +43,7 @@ def _require_login(request: Request) -> int:
 
 
 def _issue_vote_url(issue: Issue) -> str:
-    return f"/vote/{issue.org}/{issue.repo}/{issue.number}"
+    return f"/vote/{issue.org}/{issue.repo}/{issue.type}/{issue.number}"
 
 
 def _log_action(session: AsyncSession, user_id: int, action: dict) -> None:
@@ -105,11 +105,12 @@ async def vote_redirect(
     return RedirectResponse(url=_issue_vote_url(issue), status_code=303)
 
 
-@router.get("/vote/{org}/{repo}/{number}", response_class=HTMLResponse)
+@router.get("/vote/{org}/{repo}/{item_type}/{number}", response_class=HTMLResponse)
 async def vote_page(
     request: Request,
     org: str,
     repo: str,
+    item_type: str,
     number: int,
     session: SessionDep,
 ) -> HTMLResponse:
@@ -118,7 +119,7 @@ async def vote_page(
     if uid is None:
         return RedirectResponse(url="/login", status_code=303)  # type: ignore[return-value]
 
-    issue_id = f"{org}/{repo}#{number}"
+    issue_id = f"{org}/{repo}/{item_type}/{number}"
     result = await session.execute(select(Issue).where(Issue.id == issue_id))
     issue = result.scalar_one_or_none()
 
@@ -513,13 +514,22 @@ async def _results_query(
             Issue.org,
             Issue.repo,
             Issue.number,
+            Issue.type,
             Issue.title,
             Issue.url,
             func.avg(Vote.ranking).label("avg_ranking"),
             func.count(Vote.id).label("vote_count"),
         )
         .outerjoin(Vote, Vote.issue_id == Issue.id)
-        .group_by(Issue.id, Issue.org, Issue.repo, Issue.number, Issue.title, Issue.url)
+        .group_by(
+            Issue.id,
+            Issue.org,
+            Issue.repo,
+            Issue.number,
+            Issue.type,
+            Issue.title,
+            Issue.url,
+        )
     )
 
     sort_col = _RESULTS_SORT_COLUMNS.get(sort_by, func.avg(Vote.ranking))
@@ -539,6 +549,7 @@ async def _results_query(
             "org": row.org,
             "repo": row.repo,
             "number": row.number,
+            "type": row.type,
             "title": row.title,
             "url": row.url,
             "avg_ranking": round(row.avg_ranking, 2) if row.avg_ranking else None,

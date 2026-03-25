@@ -46,7 +46,7 @@ async def fetch_and_store(
                     if "pull_request" in item:
                         continue
 
-                    issue_id = f"{org}/{repo}#{item['number']}"
+                    issue_id = f"{org}/{repo}/issue/{item['number']}"
                     existing = await session.execute(select(Issue).where(Issue.id == issue_id))
 
                     created = None
@@ -62,6 +62,7 @@ async def fetch_and_store(
                             org=org,
                             repo=repo,
                             number=item["number"],
+                            type="issue",
                             title=item["title"],
                             body=item.get("body"),
                             url=item["html_url"],

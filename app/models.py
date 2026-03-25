@@ -35,10 +35,11 @@ class Issue(Base):
 
     __tablename__ = "issues"
 
-    id: Mapped[str] = mapped_column(String, primary_key=True)  # org/repo#number
+    id: Mapped[str] = mapped_column(String, primary_key=True)  # org/repo/{type}/number
     org: Mapped[str] = mapped_column(String, nullable=False)
     repo: Mapped[str] = mapped_column(String, nullable=False)
     number: Mapped[int] = mapped_column(Integer, nullable=False)
+    type: Mapped[str] = mapped_column(String, nullable=False, default="issue")
     title: Mapped[str] = mapped_column(String, nullable=False)
     body: Mapped[str | None] = mapped_column(Text, nullable=True)
     url: Mapped[str] = mapped_column(String, nullable=False)

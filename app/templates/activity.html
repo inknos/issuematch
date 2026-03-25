@@ -33,9 +33,7 @@
         </td>
         <td>
           {% if e.action.type in ("vote_create", "vote_update") %}
-            {% set parts = e.action.issue_id.split('/') %}
-            {% set repo_num = parts[1].split('#') %}
-            {% set vote_url = "/vote/" ~ parts[0] ~ "/" ~ repo_num[0] ~ "/" ~ repo_num[1] %}
+            {% set vote_url = "/vote/" ~ e.action.issue_id %}
           {% endif %}
           {% if e.action.type == "vote_create" %}
             <a href="{{ vote_url }}"><code>{{ e.action.issue_id }}</code></a>

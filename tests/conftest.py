@@ -61,10 +61,11 @@ async def seed_data(session: AsyncSession) -> dict:
     await session.flush()
 
     issue = Issue(
-        id="acme/widgets#1",
+        id="acme/widgets/issue/1",
         org="acme",
         repo="widgets",
         number=1,
+        type="issue",
         title="Fix the widget",
         body="The widget is broken.",
         url="https://github.com/acme/widgets/issues/1",
@@ -75,10 +76,11 @@ async def seed_data(session: AsyncSession) -> dict:
     session.add(issue)
 
     issue2 = Issue(
-        id="acme/gadgets#10",
+        id="acme/gadgets/issue/10",
         org="acme",
         repo="gadgets",
         number=10,
+        type="issue",
         title="Add gadget support",
         body=None,
         url="https://github.com/acme/gadgets/issues/10",

@@ -65,26 +65,26 @@ async def test_vote_redirects_to_least_voted_issue(
 
 
 # ---------------------------------------------------------------------------
-# /vote/{org}/{repo}/{number} (GET) — vote page
+# /vote/{org}/{repo}/{type}/{number} (GET) — vote page
 # ---------------------------------------------------------------------------
 
 
 async def test_vote_page_renders_issue(client: AsyncClient, seed_data: dict) -> None:
     with patch("app.routes.current_user_id", return_value=seed_data["user_id"]):
-        resp = await client.get("/vote/acme/widgets/1")
+        resp = await client.get("/vote/acme/widgets/issue/1")
     assert resp.status_code == 200
     assert "Fix the widget" in resp.text
 
 
 async def test_vote_page_redirects_anonymous(client: AsyncClient) -> None:
-    resp = await client.get("/vote/acme/widgets/1", follow_redirects=False)
+    resp = await client.get("/vote/acme/widgets/issue/1", follow_redirects=False)
     assert resp.status_code == 303
     assert "/login" in resp.headers["location"]
 
 
 async def test_vote_page_404_for_missing_issue(client: AsyncClient, seed_data: dict) -> None:
     with patch("app.routes.current_user_id", return_value=seed_data["user_id"]):
-        resp = await client.get("/vote/nope/missing/999")
+        resp = await client.get("/vote/nope/missing/issue/999")
     assert resp.status_code == 404
 
 
@@ -96,7 +96,7 @@ async def test_vote_page_shows_existing_ranking(client: AsyncClient, seed_data: 
     )
 
     with patch("app.routes.current_user_id", return_value=uid):
-        resp = await client.get("/vote/acme/widgets/1")
+        resp = await client.get("/vote/acme/widgets/issue/1")
     assert resp.status_code == 200
 
 
@@ -108,7 +108,7 @@ async def test_vote_page_shows_existing_ranking(client: AsyncClient, seed_data: 
 async def test_submit_vote_redirects_anonymous(client: AsyncClient) -> None:
     resp = await client.post(
         "/vote",
-        data={"issue_id": "acme/widgets#1", "ranking": "2"},
+        data={"issue_id": "acme/widgets/issue/1", "ranking": "2"},
         follow_redirects=False,
     )
     assert resp.status_code == 303
