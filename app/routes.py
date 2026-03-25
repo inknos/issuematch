@@ -37,10 +37,32 @@ def _issue_vote_url(issue: Issue) -> str:
     return f"/vote/{issue.org}/{issue.repo}/{issue.number}"
 
 
-async def _next_issue(session: AsyncSession, user_id: int) -> Issue | None:
+async def _next_issue(session: AsyncSession) -> Issue | None:
+    """Pick a random issue with the fewest total votes (across all users).
+
+    Unvoted issues (count 0) are naturally preferred.  When every issue has
+    at least one vote the issue with the smallest count is chosen at random.
+    Returns ``None`` only when the issues table is empty.
+    """
+    vote_counts = (
+        select(
+            Issue.id.label("issue_id"),
+            func.count(Vote.id).label("cnt"),
+        )
+        .outerjoin(Vote, Vote.issue_id == Issue.id)
+        .group_by(Issue.id)
+        .subquery()
+    )
+
+    min_result = await session.execute(select(func.min(vote_counts.c.cnt)))
+    min_count = min_result.scalar_one_or_none()
+    if min_count is None:
+        return None
+
     result = await session.execute(
         select(Issue)
-        .where(Issue.id.notin_(select(Vote.issue_id).where(Vote.user_id == user_id)))
+        .join(vote_counts, Issue.id == vote_counts.c.issue_id)
+        .where(vote_counts.c.cnt == min_count)
         .order_by(func.random())
         .limit(1),
     )
@@ -62,7 +84,7 @@ async def vote_redirect(
     if uid is None:
         return RedirectResponse(url="/login", status_code=303)
 
-    issue = await _next_issue(session, uid)
+    issue = await _next_issue(session)
     if issue is None:
         return templates.TemplateResponse("vote.html", {"request": request, "issue": None})
 
@@ -133,7 +155,7 @@ async def submit_vote(
             vote.ranking = ranking
         await session.commit()
 
-    issue = await _next_issue(session, uid)
+    issue = await _next_issue(session)
     if issue:
         return RedirectResponse(url=_issue_vote_url(issue), status_code=303)
     return RedirectResponse(url="/vote/done", status_code=303)

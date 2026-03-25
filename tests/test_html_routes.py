@@ -35,10 +35,20 @@ async def test_vote_redirects_to_issue(client: AsyncClient, seed_data: dict) -> 
     assert "/vote/" in resp.headers["location"]
 
 
-async def test_vote_shows_done_when_no_issues(client: AsyncClient, seed_data: dict) -> None:
+async def test_vote_shows_done_when_db_empty(client: AsyncClient) -> None:
+    """Done page is shown only when there are zero issues in the database."""
+    with patch("app.routes.current_user_id", return_value=1):
+        resp = await client.get("/vote", follow_redirects=False)
+    assert resp.status_code == 200
+
+
+async def test_vote_redirects_to_least_voted_issue(
+    client: AsyncClient,
+    seed_data: dict,
+) -> None:
+    """After all issues have votes, /vote still redirects to the least-voted one."""
     uid = seed_data["user_id"]
 
-    # Vote on all issues so none remain
     await client.post(
         f"/api/users/{uid}/votes",
         json={"issue_id": seed_data["issue_id"], "ranking": 1},
@@ -50,7 +60,8 @@ async def test_vote_shows_done_when_no_issues(client: AsyncClient, seed_data: di
 
     with patch("app.routes.current_user_id", return_value=uid):
         resp = await client.get("/vote", follow_redirects=False)
-    assert resp.status_code == 200
+    assert resp.status_code == 303
+    assert "/vote/" in resp.headers["location"]
 
 
 # ---------------------------------------------------------------------------
@@ -133,7 +144,11 @@ async def test_submit_vote_updates_existing(client: AsyncClient, seed_data: dict
     assert resp.status_code == 303
 
 
-async def test_submit_vote_done_when_all_voted(client: AsyncClient, seed_data: dict) -> None:
+async def test_submit_vote_redirects_to_least_voted(
+    client: AsyncClient,
+    seed_data: dict,
+) -> None:
+    """After voting on every issue, submit still redirects to a (least-voted) issue."""
     uid = seed_data["user_id"]
     await client.post(
         f"/api/users/{uid}/votes",
@@ -147,7 +162,7 @@ async def test_submit_vote_done_when_all_voted(client: AsyncClient, seed_data: d
             follow_redirects=False,
         )
     assert resp.status_code == 303
-    assert "/vote/done" in resp.headers["location"]
+    assert "/vote/" in resp.headers["location"]
 
 
 # ---------------------------------------------------------------------------
