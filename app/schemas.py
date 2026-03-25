@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime  # noqa: TC003 — Pydantic needs this at runtime
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -60,3 +61,21 @@ class PaginatedAuditLog(BaseModel):
     total: int
     page: int
     per_page: int
+
+
+class UserOut(BaseModel):
+    """Read-only representation of a user."""
+
+    id: int
+    github_id: int
+    username: str
+    avatar_url: str | None
+    role: str
+
+    model_config = {"from_attributes": True}
+
+
+class RoleUpdate(BaseModel):
+    """Payload for changing a user's role."""
+
+    role: Literal["admin", "maintainer", "contributor"]

@@ -12,7 +12,7 @@ from sqlalchemy import select
 
 from app.config import BASE_URL, GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, SESSION_SECRET
 from app.database import SessionDep  # noqa: TC001 — runtime-evaluated by FastAPI DI
-from app.models import AuditLog, User
+from app.models import AuditLog, Role, User
 
 router = APIRouter()
 
@@ -105,6 +105,7 @@ async def auth_callback(
     request.session["user_id"] = user.id
     request.session["username"] = user.username
     request.session["avatar_url"] = user.avatar_url
+    request.session["role"] = user.role
 
     return RedirectResponse(url="/vote", status_code=303)
 
@@ -123,3 +124,29 @@ async def logout(request: Request, session: SessionDep) -> RedirectResponse:
 def current_user_id(request: Request) -> int | None:
     """Return the logged-in user_id from the session, or None."""
     return request.session.get("user_id")
+
+
+ROLE_HIERARCHY: dict[str, int] = {
+    Role.admin.value: 3,
+    Role.maintainer.value: 2,
+    Role.contributor.value: 1,
+}
+
+
+def current_user_role(request: Request) -> str | None:
+    """Return the logged-in user's role from the session, or None."""
+    return request.session.get("role")
+
+
+def require_role(request: Request, minimum: str) -> int:
+    """Return user_id if the user has at least *minimum* role, else raise.
+
+    Raises 401 if not authenticated, 403 if role is insufficient.
+    """
+    uid = current_user_id(request)
+    if uid is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    user_role = current_user_role(request) or ""
+    if ROLE_HIERARCHY.get(user_role, 0) < ROLE_HIERARCHY[minimum]:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    return uid

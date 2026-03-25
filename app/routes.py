@@ -9,16 +9,18 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
 
-from app.auth import current_user_id
+from app.auth import current_user_id, require_role
 from app.database import SessionDep  # noqa: TC001 — runtime-evaluated by FastAPI DI
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
-from app.models import AuditLog, Issue, Vote
+from app.models import AuditLog, Issue, User, Vote
 from app.schemas import (
     AuditLogOut,
     PaginatedAuditLog,
     PaginatedVotes,
+    RoleUpdate,
+    UserOut,
     VoteCreate,
     VoteOut,
     VoteUpdate,
@@ -418,6 +420,72 @@ async def get_user_activity(
         select(AuditLog).where(AuditLog.user_id == user_id).order_by(AuditLog.timestamp.desc()),
     )
     return list(result.scalars().all())
+
+
+# ---------------------------------------------------------------------------
+# Admin API
+# ---------------------------------------------------------------------------
+
+
+@router.get("/api/admin/users", response_model=list[UserOut])
+async def list_users(
+    request: Request,
+    session: SessionDep,
+) -> list[User]:
+    """Return all users with their roles (admin only)."""
+    require_role(request, "admin")
+    result = await session.execute(select(User).order_by(User.username))
+    return list(result.scalars().all())
+
+
+@router.patch("/api/admin/users/{user_id}/role", response_model=UserOut)
+async def update_user_role(
+    user_id: int,
+    body: RoleUpdate,
+    request: Request,
+    session: SessionDep,
+) -> User:
+    """Change a user's role (admin only)."""
+    admin_uid = require_role(request, "admin")
+    result = await session.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    old_role = user.role
+    user.role = body.role
+    _log_action(
+        session,
+        admin_uid,
+        {
+            "type": "role_change",
+            "target_user_id": user_id,
+            "old_role": old_role,
+            "new_role": body.role,
+        },
+    )
+    await session.commit()
+    await session.refresh(user)
+    return user
+
+
+# ---------------------------------------------------------------------------
+# Admin HTML
+# ---------------------------------------------------------------------------
+
+
+@router.get("/admin/users", response_class=HTMLResponse)
+async def admin_users_page(
+    request: Request,
+    session: SessionDep,
+) -> HTMLResponse:
+    """Render the admin user-management page (admin only)."""
+    require_role(request, "admin")
+    result = await session.execute(select(User).order_by(User.username))
+    users = list(result.scalars().all())
+    return templates.TemplateResponse(
+        "admin_users.html",
+        {"request": request, "users": users},
+    )
 
 
 # ---------------------------------------------------------------------------

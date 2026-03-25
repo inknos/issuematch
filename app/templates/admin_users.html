@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Admin — Users{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">User Management</h2>
+
+<div class="table-responsive">
+  <table class="table table-striped align-middle">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Username</th>
+        <th>GitHub&nbsp;ID</th>
+        <th>Role</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for user in users %}
+      <tr id="user-row-{{ user.id }}">
+        <td>{{ user.id }}</td>
+        <td>
+          {% if user.avatar_url %}
+            <img src="{{ user.avatar_url }}" alt="" width="24" height="24" class="rounded-circle me-1">
+          {% endif %}
+          {{ user.username }}
+        </td>
+        <td>{{ user.github_id }}</td>
+        <td>
+          <select
+            class="form-select form-select-sm"
+            style="width:auto"
+            name="role"
+            hx-patch="/api/admin/users/{{ user.id }}/role"
+            hx-headers='{"Content-Type": "application/json"}'
+            hx-vals="js:{role: event.target.value}"
+            hx-swap="none"
+            hx-on::after-request="if(event.detail.successful) this.classList.add('border-success'); else alert('Failed to update role');"
+          >
+            <option value="admin"      {% if user.role == 'admin' %}selected{% endif %}>admin</option>
+            <option value="maintainer"  {% if user.role == 'maintainer' %}selected{% endif %}>maintainer</option>
+            <option value="contributor" {% if user.role == 'contributor' %}selected{% endif %}>contributor</option>
+          </select>
+        </td>
+        <td>
+          <span class="badge bg-secondary" id="status-{{ user.id }}"></span>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if not users %}
+  <p class="text-muted">No users found.</p>
+{% endif %}
+{% endblock %}

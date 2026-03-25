@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import enum
 from datetime import UTC, datetime
 
 from sqlalchemy import (
@@ -15,6 +16,14 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+
+
+class Role(enum.StrEnum):
+    """Application-level user roles, ordered by privilege."""
+
+    admin = "admin"
+    maintainer = "maintainer"
+    contributor = "contributor"
 
 
 class Base(DeclarativeBase):
@@ -49,12 +58,19 @@ class User(Base):
     """A user authenticated via GitHub OAuth."""
 
     __tablename__ = "users"
+    __table_args__ = (
+        CheckConstraint(
+            "role IN ('admin', 'maintainer', 'contributor')",
+            name="ck_user_role",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     github_id: Mapped[int] = mapped_column(Integer, unique=True, nullable=False)
     username: Mapped[str] = mapped_column(String, nullable=False)
     avatar_url: Mapped[str | None] = mapped_column(String, nullable=True)
     access_token: Mapped[str | None] = mapped_column(String, nullable=True)
+    role: Mapped[str] = mapped_column(String, nullable=False, default=Role.contributor.value)
 
     votes: Mapped[list[Vote]] = relationship(back_populates="user")
 

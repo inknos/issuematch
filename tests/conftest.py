@@ -49,8 +49,14 @@ async def client() -> AsyncGenerator[AsyncClient, None]:
 
 @pytest_asyncio.fixture
 async def seed_data(session: AsyncSession) -> dict:
-    """Create a sample User and Issue, return their identifiers."""
-    user = User(github_id=12345, username="testuser", avatar_url=None, access_token=None)
+    """Create a sample User (contributor) and Issues, return their identifiers."""
+    user = User(
+        github_id=12345,
+        username="testuser",
+        avatar_url=None,
+        access_token=None,
+        role="contributor",
+    )
     session.add(user)
     await session.flush()
 
@@ -88,3 +94,18 @@ async def seed_data(session: AsyncSession) -> dict:
         "issue_id": issue.id,
         "issue_id_2": issue2.id,
     }
+
+
+@pytest_asyncio.fixture
+async def admin_user(session: AsyncSession) -> dict:
+    """Create an admin user, return their identifiers."""
+    user = User(
+        github_id=77777,
+        username="adminuser",
+        avatar_url=None,
+        access_token=None,
+        role="admin",
+    )
+    session.add(user)
+    await session.commit()
+    return {"user_id": user.id, "username": user.username}
