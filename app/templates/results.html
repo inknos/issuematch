@@ -24,7 +24,6 @@
   <table class="table table-striped align-middle">
     <thead>
       <tr>
-        <th>#</th>
         <th>{{ sort_link("title", "Issue") }}</th>
         <th class="text-end">{{ sort_link("avg_ranking", "Avg") }}</th>
         <th class="text-end">{{ sort_link("vote_count", "Votes") }}</th>
@@ -34,7 +33,6 @@
     <tbody>
       {% for r in results %}
       <tr>
-        <td>{{ (page - 1) * per_page + loop.index }}</td>
         <td>
           <a href="{{ r.url }}" target="_blank" rel="noopener">{{ r.title }}</a>
           <small class="text-muted d-block">{{ r.issue_id }}</small>
