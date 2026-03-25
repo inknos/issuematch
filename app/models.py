@@ -31,9 +31,9 @@ class Issue(Base):
     url: Mapped[str] = mapped_column(String, nullable=False)
     labels: Mapped[list | None] = mapped_column(JSON, nullable=True)
     state: Mapped[str] = mapped_column(String, nullable=False, default="open")
-    created_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     fetched_at: Mapped[datetime] = mapped_column(
-        DateTime,
+        DateTime(timezone=True),
         nullable=False,
         default=lambda: datetime.now(UTC),
     )

@@ -1,0 +1,41 @@
+# FileName=issuematch-net
+[Network]
+---
+# FileName=issuematch-postgres-pgdata
+[Volume]
+---
+# FileName=issuematch
+[Pod]
+PodName=issuematch
+Network=issuematch-net.network
+PublishPort=9473:9473
+---
+# FileName=issuematch
+[Build]
+ImageTag=localhost/issuematch
+SetWorkingDirectory=/home/nsella/Documents/personal_projects/issuematch
+---
+# FileName=issuematch-postgres
+[Container]
+Image=docker.io/library/postgres:18-alpine
+ContainerName=issuematch-postgres
+Pod=issuematch.pod
+Volume=issuematch-postgres-pgdata.volume:/var/lib/postgresql/data
+Environment=POSTGRES_DB=issuematch
+Environment=POSTGRES_USER=issuematch
+Secret=postgres_password,type=env,target=POSTGRES_PASSWORD
+---
+# FileName=issuematch
+[Container]
+Image=issuematch.build
+ContainerName=issuematch
+Pod=issuematch.pod
+Secret=github_client_id,type=env,target=GITHUB_CLIENT_ID
+Secret=github_client_secret,type=env,target=GITHUB_CLIENT_SECRET
+Secret=github_token,type=env,target=GITHUB_TOKEN
+Secret=session_secret,type=env,target=SESSION_SECRET
+Secret=base_url,type=env,target=BASE_URL
+Secret=database_url,type=env,target=DATABASE_URL
+
+[Install]
+WantedBy=default.target

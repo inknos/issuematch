@@ -8,6 +8,7 @@ dependencies = [
     "uvicorn[standard]",
     "sqlalchemy[asyncio]",
     "aiosqlite",
+    "asyncpg",
     "httpx",
     "jinja2",
     "python-multipart",
@@ -27,6 +28,7 @@ analysis = [
     "matplotlib",
     "jupyter",
     "ipykernel",
+    "ipyparallel",
 ]
 
 [build-system]
