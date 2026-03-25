@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Literal
 import httpx
 from sqlalchemy import delete, select
 
-from app.models import Issue, Vote
+from app.models import Issue
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -93,11 +93,10 @@ async def _remove_issues(
     session_factory: async_sessionmaker,
     issue_ids: set[str],
 ) -> int:
-    """Delete issues (and their votes) whose IDs are in *issue_ids*."""
+    """Delete issues whose IDs are in *issue_ids*. Votes are preserved."""
     if not issue_ids:
         return 0
     async with session_factory() as db:
-        await db.execute(delete(Vote).where(Vote.issue_id.in_(issue_ids)))
         result = await db.execute(delete(Issue).where(Issue.id.in_(issue_ids)))
         await db.commit()
         return result.rowcount  # type: ignore[return-value]
@@ -126,7 +125,6 @@ async def _remove_stale_issues(
         if not stale_ids:
             return 0
 
-        await db.execute(delete(Vote).where(Vote.issue_id.in_(stale_ids)))
         result = await db.execute(delete(Issue).where(Issue.id.in_(stale_ids)))
         await db.commit()
         return result.rowcount  # type: ignore[return-value]

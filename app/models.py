@@ -52,7 +52,10 @@ class Issue(Base):
         default=lambda: datetime.now(UTC),
     )
 
-    votes: Mapped[list[Vote]] = relationship(back_populates="issue")
+    votes: Mapped[list[Vote]] = relationship(
+        back_populates="issue",
+        primaryjoin="Issue.id == foreign(Vote.issue_id)",
+    )
 
 
 class User(Base):
@@ -91,7 +94,7 @@ class Vote(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
-    issue_id: Mapped[str] = mapped_column(String, ForeignKey("issues.id"), nullable=False)
+    issue_id: Mapped[str] = mapped_column(String, nullable=False)
     ranking: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -100,7 +103,10 @@ class Vote(Base):
     )
 
     user: Mapped[User] = relationship(back_populates="votes")
-    issue: Mapped[Issue] = relationship(back_populates="votes")
+    issue: Mapped[Issue | None] = relationship(
+        back_populates="votes",
+        primaryjoin="Issue.id == foreign(Vote.issue_id)",
+    )
 
 
 class AuditLog(Base):

@@ -326,7 +326,7 @@ async def list_votes(
 
     needs_issue_join = org is not None or repo is not None
     if needs_issue_join:
-        base = base.join(Issue, Vote.issue_id == Issue.id)
+        base = base.outerjoin(Issue, Vote.issue_id == Issue.id)
 
     if issue_id is not None:
         base = base.where(Vote.issue_id == issue_id)

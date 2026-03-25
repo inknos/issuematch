@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 import pytest
+from app.models import Issue, Vote
+from sqlalchemy import delete, select
 
 if TYPE_CHECKING:
     import httpx
     from httpx import AsyncClient
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 pytestmark = pytest.mark.asyncio
 
@@ -380,3 +384,65 @@ async def test_get_user_activity(client: AsyncClient, seed_data: dict) -> None:
     assert len(entries) == 2
     assert all(e["user_id"] == uid for e in entries)
     assert all(e["action"]["type"] == "vote_create" for e in entries)
+
+
+# ---------------------------------------------------------------------------
+# Vote persistence across issue deletion
+# ---------------------------------------------------------------------------
+
+
+async def test_vote_survives_issue_deletion(
+    client: AsyncClient,
+    session: AsyncSession,
+    seed_data: dict,
+) -> None:
+    """Votes must persist when their referenced issue is deleted."""
+    uid = seed_data["user_id"]
+    issue_id = seed_data["issue_id"]
+    await _create_vote(client, uid, issue_id, 2)
+
+    await session.execute(delete(Issue).where(Issue.id == issue_id))
+    await session.commit()
+
+    result = await session.execute(select(Vote).where(Vote.issue_id == issue_id))
+    vote = result.scalar_one_or_none()
+    assert vote is not None
+    assert vote.ranking == 2
+    assert vote.issue_id == issue_id
+
+
+async def test_vote_reconnects_after_issue_recreated(
+    client: AsyncClient,
+    session: AsyncSession,
+    seed_data: dict,
+) -> None:
+    """After an issue is deleted and re-added, its votes are still linked."""
+    uid = seed_data["user_id"]
+    issue_id = seed_data["issue_id"]
+    await _create_vote(client, uid, issue_id, 3)
+
+    await session.execute(delete(Issue).where(Issue.id == issue_id))
+    await session.commit()
+
+    restored = Issue(
+        id=issue_id,
+        org="acme",
+        repo="widgets",
+        number=1,
+        type="issue",
+        title="Fix the widget (reopened)",
+        body="Still broken.",
+        url="https://github.com/acme/widgets/issues/1",
+        labels=["bug"],
+        state="open",
+        fetched_at=datetime.now(UTC),
+    )
+    session.add(restored)
+    await session.commit()
+
+    resp = await client.get(f"/api/users/{uid}/votes", params={"issue_id": issue_id})
+    assert resp.status_code == 200
+    votes = resp.json()
+    assert len(votes) == 1
+    assert votes[0]["ranking"] == 3
+    assert votes[0]["issue_id"] == issue_id

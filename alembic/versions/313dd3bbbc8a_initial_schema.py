@@ -63,7 +63,6 @@ def upgrade() -> None:
     sa.Column('ranking', sa.Integer(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.CheckConstraint('ranking IN (-3, -2, -1, 1, 2, 3) OR ranking IS NULL', name='ck_ranking_values'),
-    sa.ForeignKeyConstraint(['issue_id'], ['issues.id'], ),
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('user_id', 'issue_id', name='uq_user_issue')
