@@ -23,6 +23,7 @@ dev = [
     "pytest",
     "pytest-asyncio",
     "httpx",
+    "pytest-cov",
 ]
 analysis = [
     "numpy",
@@ -118,3 +119,7 @@ select = [
 "fetch_issues.py" = ["T20"]  # CLI script, print is intentional
 "tests/**" = ["S101", "INP001"]  # assert + implicit namespace are standard in pytest
 "alembic/**" = ["INP001"]  # alembic directories are not standard Python packages
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+addopts = "--cov=app --cov-report=term-missing"

@@ -4,6 +4,7 @@
 .mypy_cache/
 .pytest_cache/
 .ruff_cache/
+.coverage
 .pre-commit-config.yaml
 __pycache__/
 *.py[cod]
