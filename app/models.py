@@ -1,3 +1,5 @@
+"""SQLAlchemy ORM models for issues, users, and votes."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -16,10 +18,12 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
 class Base(DeclarativeBase):
-    pass
+    """Shared declarative base for all ORM models."""
 
 
 class Issue(Base):
+    """A GitHub issue fetched for ranking."""
+
     __tablename__ = "issues"
 
     id: Mapped[str] = mapped_column(String, primary_key=True)  # org/repo#number
@@ -42,6 +46,8 @@ class Issue(Base):
 
 
 class User(Base):
+    """A user authenticated via GitHub OAuth."""
+
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -54,6 +60,8 @@ class User(Base):
 
 
 class Vote(Base):
+    """A user's ranking of an issue (-3..3 or NULL)."""
+
     __tablename__ = "votes"
     __table_args__ = (
         UniqueConstraint("user_id", "issue_id", name="uq_user_issue"),

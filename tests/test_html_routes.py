@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 from unittest.mock import patch
 
-from httpx import AsyncClient
+if TYPE_CHECKING:
+    from httpx import AsyncClient
 
 # ---------------------------------------------------------------------------
 # Index (/)

@@ -1,7 +1,12 @@
+"""FastAPI application entry-point and middleware setup."""
+
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -16,6 +21,7 @@ from app.routes import router as routes_router
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
+    """Validate required secrets on startup."""
     validate_secrets()
     yield
 
@@ -32,6 +38,7 @@ app.include_router(routes_router)
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request) -> HTMLResponse:
+    """Show login page or redirect authenticated users to /vote."""
     if request.session.get("user_id"):
         return RedirectResponse(url="/vote", status_code=303)  # type: ignore[return-value]
     return templates.TemplateResponse("login.html", {"request": request})

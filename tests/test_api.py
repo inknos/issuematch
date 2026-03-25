@@ -1,8 +1,12 @@
 from __future__ import annotations
 
-import httpx
+from typing import TYPE_CHECKING
+
 import pytest
-from httpx import AsyncClient
+
+if TYPE_CHECKING:
+    import httpx
+    from httpx import AsyncClient
 
 pytestmark = pytest.mark.asyncio
 

@@ -22,6 +22,7 @@ async def fetch_and_store(
     labels: str | None = None,
     state: str = "open",
 ) -> int:
+    """Fetch issues from the GitHub API and upsert them into the database."""
     headers = {
         "Accept": "application/vnd.github+json",
         "Authorization": f"Bearer {GITHUB_TOKEN}",
@@ -89,6 +90,7 @@ async def fetch_and_store(
 
 
 def main() -> None:
+    """Parse CLI arguments and run the fetch-and-store pipeline."""
     parser = argparse.ArgumentParser(description="Fetch GitHub issues into the DB")
     parser.add_argument("--org", required=True, help="GitHub organisation / owner")
     parser.add_argument("--repo", required=True, help="Repository name")

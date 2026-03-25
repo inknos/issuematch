@@ -1,13 +1,19 @@
+"""HTML and JSON API routes for voting and results."""
+
 from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import current_user_id
-from app.database import SessionDep
+from app.database import SessionDep  # noqa: TC001 — runtime-evaluated by FastAPI DI
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Issue, Vote
 from app.schemas import PaginatedVotes, VoteCreate, VoteOut, VoteUpdate
 
@@ -51,6 +57,7 @@ async def vote_redirect(
     request: Request,
     session: SessionDep,
 ) -> HTMLResponse | RedirectResponse:
+    """Pick a random unvoted issue and redirect, or show the done page."""
     uid = current_user_id(request)
     if uid is None:
         return RedirectResponse(url="/login", status_code=303)
@@ -70,6 +77,7 @@ async def vote_page(
     number: int,
     session: SessionDep,
 ) -> HTMLResponse:
+    """Render the voting card for a specific issue."""
     uid = current_user_id(request)
     if uid is None:
         return RedirectResponse(url="/login", status_code=303)  # type: ignore[return-value]
@@ -103,6 +111,7 @@ async def submit_vote(
     request: Request,
     session: SessionDep,
 ) -> RedirectResponse:
+    """Create or update a vote from the HTML form and redirect to the next issue."""
     uid = current_user_id(request)
     if uid is None:
         return RedirectResponse(url="/login", status_code=303)
@@ -132,6 +141,7 @@ async def submit_vote(
 
 @router.get("/vote/done", response_class=HTMLResponse)
 async def vote_done(request: Request) -> HTMLResponse:
+    """Show the 'all issues voted' confirmation page."""
     uid = current_user_id(request)
     if uid is None:
         return RedirectResponse(url="/login", status_code=303)  # type: ignore[return-value]
@@ -147,6 +157,7 @@ async def results_page(
     page: int = 1,
     per_page: int = 20,
 ) -> HTMLResponse:
+    """Render the sortable, paginated results table."""
     uid = current_user_id(request)
     if uid is None:
         return RedirectResponse(url="/login", status_code=303)  # type: ignore[return-value]
@@ -188,6 +199,7 @@ async def list_votes(
     page: int = 1,
     per_page: int = 20,
 ) -> dict:
+    """Return a paginated, filterable list of votes."""
     base = select(Vote)
 
     needs_issue_join = org is not None or repo is not None
@@ -219,6 +231,7 @@ async def get_user_votes(
     session: SessionDep,
     issue_id: str | None = None,
 ) -> list[Vote]:
+    """Return all votes for a user, optionally filtered by issue."""
     stmt = select(Vote).where(Vote.user_id == user_id)
     if issue_id is not None:
         stmt = stmt.where(Vote.issue_id == issue_id)
@@ -232,6 +245,7 @@ async def create_user_vote(
     body: VoteCreate,
     session: SessionDep,
 ) -> Vote:
+    """Create a vote for the given user; 409 if a vote already exists."""
     existing = await session.execute(
         select(Vote).where(Vote.user_id == user_id, Vote.issue_id == body.issue_id),
     )
@@ -250,6 +264,7 @@ async def update_user_vote(
     body: VoteUpdate,
     session: SessionDep,
 ) -> Vote:
+    """Update the ranking of an existing vote; 404 if not found."""
     result = await session.execute(
         select(Vote).where(Vote.user_id == user_id, Vote.issue_id == body.issue_id),
     )

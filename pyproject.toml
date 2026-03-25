@@ -93,16 +93,16 @@ select = [
     "PGH", # pygrep-hooks
     "FLY", # flynt (prefer f-strings)
     "FA", # flake8-future-annotations
-    # TODO "PLR", # Pylint Refactor — too many args in FastAPI routes, magic values in tests
+    "PLR", # Pylint Refactor
     "ASYNC", # flake8-async
     "TRY", # tryceratops
     "PT", # flake8-pytest-style
     "DTZ", # flake8-datetimez
-    # TODO "TC", # flake8-type-checking — SessionDep is runtime-evaluated by FastAPI DI
+    "TC", # flake8-type-checking
     "BLE", # flake8-blind-except
     "EM", # flake8-errmsg
     "PTH", # flake8-use-pathlib
-    # TODO "D", # pydocstyle — requires docstrings on all public modules/classes/functions
+    "D", # pydocstyle
     "FBT", # flake8-boolean-trap
     "ERA", # eradicate (commented-out code)
     "INP", # flake8-no-pep420
@@ -119,8 +119,13 @@ select = [
 
 [tool.ruff.lint.per-file-ignores]
 "fetch_issues.py" = ["T20"]  # CLI script, print is intentional
-"tests/**" = ["S101", "INP001"]  # assert + implicit namespace are standard in pytest
-"alembic/**" = ["INP001"]  # alembic directories are not standard Python packages
+"tests/**" = ["S101", "INP001", "PLR2004", "D100", "D103"]
+"alembic/**" = ["INP001", "D"]
+"analysis/**" = ["PLR2004", "PLR0913", "D"]
+"app/routes.py" = ["PLR0913"]  # FastAPI DI injects many params
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

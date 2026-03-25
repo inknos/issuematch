@@ -1,3 +1,5 @@
+"""GitHub OAuth login/callback/logout routes and session helpers."""
+
 from __future__ import annotations
 
 from urllib.parse import urlencode
@@ -9,7 +11,7 @@ from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from sqlalchemy import select
 
 from app.config import BASE_URL, GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, SESSION_SECRET
-from app.database import SessionDep
+from app.database import SessionDep  # noqa: TC001 — runtime-evaluated by FastAPI DI
 from app.models import User
 
 router = APIRouter()
@@ -26,6 +28,7 @@ STATE_MAX_AGE = 300  # 5 minutes
 
 @router.get("/login")
 async def login() -> RedirectResponse:
+    """Redirect the user to GitHub's OAuth authorize page."""
     state = _signer.dumps({"v": 1})
 
     params = urlencode(
@@ -46,6 +49,7 @@ async def auth_callback(
     state: str,
     session: SessionDep,
 ) -> RedirectResponse:
+    """Exchange the OAuth code for a token and create or update the user."""
     try:
         _signer.loads(state, max_age=STATE_MAX_AGE)
     except SignatureExpired:
@@ -105,6 +109,7 @@ async def auth_callback(
 
 @router.get("/logout")
 async def logout(request: Request) -> RedirectResponse:
+    """Clear the session and redirect to the login page."""
     request.session.clear()
     return RedirectResponse(url="/login")
 

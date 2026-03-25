@@ -1,7 +1,10 @@
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
 
 import pytest_asyncio
 from app.models import Base, Issue, User
