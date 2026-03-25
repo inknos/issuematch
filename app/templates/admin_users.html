@@ -69,42 +69,46 @@
           Pull issues or pull requests into the database for voting.
         </p>
 
-        <form id="fetch-form"
-              hx-post="/api/admin/fetch"
-              hx-ext="json-enc"
-              hx-swap="none"
-              hx-on::before-request="
-                var org = document.getElementById('fetch-org').value.trim();
-                var repo = document.getElementById('fetch-repo').value.trim();
-                if (!org || !repo) { event.preventDefault(); return; }
-                document.getElementById('fetch-btn').disabled = true;
-                document.getElementById('fetch-spinner').classList.remove('d-none');
-                document.getElementById('fetch-result').textContent = '';
-              "
-              hx-vals="js:{
-                org: document.getElementById('fetch-org').value.trim(),
-                repo: document.getElementById('fetch-repo').value.trim(),
-                type: document.getElementById('fetch-type').value,
-                labels: document.getElementById('fetch-labels').value.trim() || null
-              }"
-              hx-on::after-request="
-                document.getElementById('fetch-btn').disabled = false;
-                document.getElementById('fetch-spinner').classList.add('d-none');
-                var el = document.getElementById('fetch-result');
-                if (event.detail.successful) {
-                  var data = JSON.parse(event.detail.xhr.responseText);
-                  el.textContent = 'Upserted ' + data.upserted + ' items from ' + data.org + '/' + data.repo;
-                  el.className = 'text-success small mt-2';
-                } else {
-                  try {
-                    var err = JSON.parse(event.detail.xhr.responseText);
-                    el.textContent = err.detail || 'Fetch failed.';
-                  } catch(e) {
-                    el.textContent = 'Fetch failed.';
-                  }
-                  el.className = 'text-danger small mt-2';
-                }
-              ">
+        <form id="fetch-form" onsubmit="
+          event.preventDefault();
+          var org = document.getElementById('fetch-org').value.trim();
+          var repo = document.getElementById('fetch-repo').value.trim();
+          if (!org || !repo) return;
+          var btn = document.getElementById('fetch-btn');
+          var spinner = document.getElementById('fetch-spinner');
+          var el = document.getElementById('fetch-result');
+          btn.disabled = true;
+          spinner.classList.remove('d-none');
+          el.textContent = '';
+          var labels = document.getElementById('fetch-labels').value.trim() || null;
+          fetch('/api/admin/fetch', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({org: org, repo: repo, type: document.getElementById('fetch-type').value, labels: labels})
+          }).then(function(resp) {
+            btn.disabled = false;
+            spinner.classList.add('d-none');
+            if (resp.ok) {
+              return resp.json().then(function(data) {
+                el.textContent = 'Upserted ' + data.upserted + ' items from ' + data.org + '/' + data.repo;
+                el.className = 'text-success small mt-2';
+              });
+            } else {
+              return resp.json().then(function(err) {
+                el.textContent = err.detail || 'Fetch failed.';
+                el.className = 'text-danger small mt-2';
+              }).catch(function() {
+                el.textContent = 'Fetch failed.';
+                el.className = 'text-danger small mt-2';
+              });
+            }
+          }).catch(function() {
+            btn.disabled = false;
+            spinner.classList.add('d-none');
+            el.textContent = 'Fetch failed.';
+            el.className = 'text-danger small mt-2';
+          });
+        ">
           <div class="row g-2 mb-2">
             <div class="col-6">
               <input type="text" class="form-control" id="fetch-org" placeholder="Org / Owner" required>
@@ -164,12 +168,17 @@
           <select
             class="form-select form-select-sm"
             style="width:auto"
-            name="role"
-            hx-patch="/api/admin/users/{{ user.id }}/role"
-            hx-ext="json-enc"
-            hx-vals="js:{role: event.target.value}"
-            hx-swap="none"
-            hx-on::after-request="if(event.detail.successful) this.classList.add('border-success'); else alert('Failed to update role');"
+            onchange="
+              var sel = this;
+              fetch('/api/admin/users/{{ user.id }}/role', {
+                method: 'PATCH',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({role: sel.value})
+              }).then(function(resp) {
+                if (resp.ok) sel.classList.add('border-success');
+                else alert('Failed to update role');
+              }).catch(function() { alert('Failed to update role'); });
+            "
           >
             <option value="admin"      {% if user.role == 'admin' %}selected{% endif %}>admin</option>
             <option value="maintainer"  {% if user.role == 'maintainer' %}selected{% endif %}>maintainer</option>
