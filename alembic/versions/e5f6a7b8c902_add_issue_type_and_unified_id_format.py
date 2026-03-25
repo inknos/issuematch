@@ -17,6 +17,39 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 
+def _is_postgresql() -> bool:
+    return op.get_bind().dialect.name == "postgresql"
+
+
+def _migrate_audit_log_json(old: str, new: str) -> None:
+    """Rewrite issue_id inside audit_log.action JSON, dialect-aware."""
+    conn = op.get_bind()
+    params = {"old": old, "new": new}
+    if _is_postgresql():
+        conn.execute(
+            sa.text(
+                "UPDATE audit_log"
+                " SET action = (action::jsonb"
+                "   || jsonb_build_object('issue_id',"
+                "       REPLACE(action->>'issue_id', :old, :new)))"
+                "   ::json"
+                " WHERE action->>'issue_id' IS NOT NULL",
+            ),
+            params,
+        )
+    else:
+        conn.execute(
+            sa.text(
+                "UPDATE audit_log SET action = json_set("
+                "  action,"
+                "  '$.issue_id',"
+                "  REPLACE(json_extract(action, '$.issue_id'), :old, :new)"
+                ") WHERE json_extract(action, '$.issue_id') IS NOT NULL",
+            ),
+            params,
+        )
+
+
 def upgrade() -> None:
     op.add_column(
         "issues",
@@ -32,30 +65,13 @@ def upgrade() -> None:
         sa.text("UPDATE votes SET issue_id = REPLACE(issue_id, '#', '/issue/')"),
     )
 
-    conn.execute(
-        sa.text(
-            "UPDATE audit_log SET action = json_set("
-            "  action,"
-            "  '$.issue_id',"
-            "  REPLACE(json_extract(action, '$.issue_id'), '#', '/issue/')"
-            ") WHERE json_extract(action, '$.issue_id') IS NOT NULL",
-        ),
-    )
+    _migrate_audit_log_json("#", "/issue/")
 
 
 def downgrade() -> None:
+    _migrate_audit_log_json("/issue/", "#")
+
     conn = op.get_bind()
-
-    conn.execute(
-        sa.text(
-            "UPDATE audit_log SET action = json_set("
-            "  action,"
-            "  '$.issue_id',"
-            "  REPLACE(json_extract(action, '$.issue_id'), '/issue/', '#')"
-            ") WHERE json_extract(action, '$.issue_id') IS NOT NULL",
-        ),
-    )
-
     conn.execute(
         sa.text("UPDATE votes SET issue_id = REPLACE(issue_id, '/issue/', '#')"),
     )
