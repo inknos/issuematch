@@ -22,29 +22,33 @@
           </span>
         </div>
 
-        <form id="token-form"
-              hx-put="/api/admin"
-              hx-headers='{"Content-Type": "application/json"}'
-              hx-swap="none"
-              hx-on::before-request="
-                var input = document.getElementById('token-input');
-                if (!input.value.trim()) { event.preventDefault(); return; }
-                event.detail.requestConfig.headers['Content-Type'] = 'application/json';
-              "
-              hx-vals="js:{token: document.getElementById('token-input').value}"
-              hx-on::after-request="
-                if (event.detail.successful) {
-                  document.getElementById('token-input').value = '';
-                  var badge = document.getElementById('token-status');
-                  badge.textContent = 'Token set';
-                  badge.className = 'badge bg-success';
-                  document.getElementById('token-msg').textContent = 'Token saved.';
-                  document.getElementById('token-msg').className = 'text-success small mt-2';
-                } else {
-                  document.getElementById('token-msg').textContent = 'Failed to save token.';
-                  document.getElementById('token-msg').className = 'text-danger small mt-2';
-                }
-              ">
+        <form id="token-form" onsubmit="
+          event.preventDefault();
+          var input = document.getElementById('token-input');
+          if (!input.value.trim()) return;
+          fetch('/api/admin', {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({token: input.value})
+          }).then(function(resp) {
+            var msg = document.getElementById('token-msg');
+            if (resp.ok) {
+              input.value = '';
+              var badge = document.getElementById('token-status');
+              badge.textContent = 'Token set';
+              badge.className = 'badge bg-success';
+              msg.textContent = 'Token saved.';
+              msg.className = 'text-success small mt-2';
+            } else {
+              msg.textContent = 'Failed to save token.';
+              msg.className = 'text-danger small mt-2';
+            }
+          }).catch(function() {
+            var msg = document.getElementById('token-msg');
+            msg.textContent = 'Failed to save token.';
+            msg.className = 'text-danger small mt-2';
+          });
+        ">
           <div class="input-group">
             <input type="password" class="form-control" id="token-input"
                    placeholder="ghp_..." autocomplete="off">
@@ -67,7 +71,7 @@
 
         <form id="fetch-form"
               hx-post="/api/admin/fetch"
-              hx-headers='{"Content-Type": "application/json"}'
+              hx-ext="json-enc"
               hx-swap="none"
               hx-on::before-request="
                 var org = document.getElementById('fetch-org').value.trim();
@@ -162,7 +166,7 @@
             style="width:auto"
             name="role"
             hx-patch="/api/admin/users/{{ user.id }}/role"
-            hx-headers='{"Content-Type": "application/json"}'
+            hx-ext="json-enc"
             hx-vals="js:{role: event.target.value}"
             hx-swap="none"
             hx-on::after-request="if(event.detail.successful) this.classList.add('border-success'); else alert('Failed to update role');"
