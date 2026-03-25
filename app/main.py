@@ -10,14 +10,13 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.auth import router as auth_router
-from app.config import SESSION_SECRET
-from app.database import init_db
+from app.config import SESSION_SECRET, validate_secrets
 from app.routes import router as routes_router
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
-    await init_db()
+    validate_secrets()
     yield
 
 

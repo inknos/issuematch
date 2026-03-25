@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fetch GitHub issues and upsert them into the local SQLite database."""
+"""Fetch GitHub issues and upsert them into the database."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 
 import httpx
 from app.config import GITHUB_TOKEN
-from app.database import async_session, init_db
+from app.database import async_session
 from app.models import Issue
 from sqlalchemy import select
 
@@ -22,8 +22,6 @@ async def fetch_and_store(
     labels: str | None = None,
     state: str = "open",
 ) -> int:
-    await init_db()
-
     headers = {
         "Accept": "application/vnd.github+json",
         "Authorization": f"Bearer {GITHUB_TOKEN}",

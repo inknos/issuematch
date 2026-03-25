@@ -9,6 +9,7 @@ dependencies = [
     "sqlalchemy[asyncio]",
     "aiosqlite",
     "asyncpg",
+    "alembic",
     "httpx",
     "jinja2",
     "python-multipart",
@@ -116,3 +117,4 @@ select = [
 [tool.ruff.lint.per-file-ignores]
 "fetch_issues.py" = ["T20"]  # CLI script, print is intentional
 "tests/**" = ["S101", "INP001"]  # assert + implicit namespace are standard in pytest
+"alembic/**" = ["INP001"]  # alembic directories are not standard Python packages
