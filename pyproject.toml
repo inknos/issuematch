@@ -1,4 +1,7 @@
 [project]
+authors = [
+    { name = "Nicola Sella", email = "nsella@redhat.com" },
+]
 name = "issuematch"
 version = "0.1.0"
 description = "Rank GitHub issues with your team"

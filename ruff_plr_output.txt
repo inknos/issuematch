@@ -1,0 +1,559 @@
+[1m[91mPLR0913 [0m[1mToo many arguments in function definition (12 > 5)[0m
+ [1m[94m-->[0m analysis/grading_simulation.ipynb:cell 18:1:5
+  [1m[94m|[0m
+[1m[94m1 |[0m def run_simulation(
+  [1m[94m|[0m     [1m[91m^^^^^^^^^^^^^^[0m
+[1m[94m2 |[0m     n_items: int,
+[1m[94m3 |[0m     n_users: int,
+  [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `2` with a constant variable[0m
+   [1m[94m-->[0m analysis/grading_simulation.ipynb:cell 19:98:26
+    [1m[94m|[0m
+[1m[94m 96 |[0m         ys_arr = np.array(ys, dtype=float)
+[1m[94m 97 |[0m         mask = ~np.isnan(ys_arr)
+[1m[94m 98 |[0m         if mask.sum() >= 2:
+    [1m[94m|[0m                          [1m[91m^[0m
+[1m[94m 99 |[0m             z = np.polyfit(xs[mask], ys_arr[mask], 1)
+[1m[94m100 |[0m             x_fit = np.linspace(xs.min(), xs.max(), 100)
+    [1m[94m|[0m
+
+[1m[91mPLR0913 [0m[1mToo many arguments in function definition (6 > 5)[0m
+   [1m[94m-->[0m app/routes.py:142:11
+    [1m[94m|[0m
+[1m[94m141 |[0m @router.get("/votes", response_class=HTMLResponse)
+[1m[94m142 |[0m async def results_page(
+    [1m[94m|[0m           [1m[91m^^^^^^^^^^^^[0m
+[1m[94m143 |[0m     request: Request,
+[1m[94m144 |[0m     session: SessionDep,
+    [1m[94m|[0m
+
+[1m[91mPLR0913 [0m[1mToo many arguments in function definition (7 > 5)[0m
+   [1m[94m-->[0m app/routes.py:182:11
+    [1m[94m|[0m
+[1m[94m181 |[0m @router.get("/api/votes", response_model=PaginatedVotes)
+[1m[94m182 |[0m async def list_votes(
+    [1m[94m|[0m           [1m[91m^^^^^^^^^^[0m
+[1m[94m183 |[0m     session: SessionDep,
+[1m[94m184 |[0m     issue_id: str | None = None,
+    [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `201` with a constant variable[0m
+  [1m[94m-->[0m tests/test_api.py:25:32
+   [1m[94m|[0m
+[1m[94m23 |[0m         json={"issue_id": issue_id, "ranking": ranking},
+[1m[94m24 |[0m     )
+[1m[94m25 |[0m     assert resp.status_code == 201
+   [1m[94m|[0m                                [1m[91m^^^[0m
+[1m[94m26 |[0m     return resp
+   [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `200` with a constant variable[0m
+  [1m[94m-->[0m tests/test_api.py:36:32
+   [1m[94m|[0m
+[1m[94m34 |[0m async def test_list_votes_empty(client: AsyncClient) -> None:
+[1m[94m35 |[0m     resp = await client.get("/api/votes")
+[1m[94m36 |[0m     assert resp.status_code == 200
+   [1m[94m|[0m                                [1m[91m^^^[0m
+[1m[94m37 |[0m     data = resp.json()
+[1m[94m38 |[0m     assert data == {"items": [], "total": 0, "page": 1, "per_page": 20}
+   [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `200` with a constant variable[0m
+  [1m[94m-->[0m tests/test_api.py:47:32
+   [1m[94m|[0m
+[1m[94m46 |[0m     resp = await client.get("/api/votes")
+[1m[94m47 |[0m     assert resp.status_code == 200
+   [1m[94m|[0m                                [1m[91m^^^[0m
+[1m[94m48 |[0m     data = resp.json()
+[1m[94m49 |[0m     assert data["total"] == 2
+   [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `2` with a constant variable[0m
+  [1m[94m-->[0m tests/test_api.py:49:29
+   [1m[94m|[0m
+[1m[94m47 |[0m     assert resp.status_code == 200
+[1m[94m48 |[0m     data = resp.json()
+[1m[94m49 |[0m     assert data["total"] == 2
+   [1m[94m|[0m                             [1m[91m^[0m
+[1m[94m50 |[0m     assert len(data["items"]) == 2
+   [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `2` with a constant variable[0m
+  [1m[94m-->[0m tests/test_api.py:50:34
+   [1m[94m|[0m
+[1m[94m48 |[0m     data = resp.json()
+[1m[94m49 |[0m     assert data["total"] == 2
+[1m[94m50 |[0m     assert len(data["items"]) == 2
+   [1m[94m|[0m                                  [1m[91m^[0m
+   [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `200` with a constant variable[0m
+  [1m[94m-->[0m tests/test_api.py:59:32
+   [1m[94m|[0m
+[1m[94m58 |[0m     resp = await client.get("/api/votes", params={"issue_id": seed_data["issue_id"]})
+[1m[94m59 |[0m     assert resp.status_code == 200
+   [1m[94m|[0m                                [1m[91m^^^[0m
+[1m[94m60 |[0m     data = resp.json()
+[1m[94m61 |[0m     assert data["total"] == 1
+   [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `200` with a constant variable[0m
+  [1m[94m-->[0m tests/test_api.py:70:32
+   [1m[94m|[0m
+[1m[94m69 |[0m     resp = await client.get("/api/votes", params={"org": "acme"})
+[1m[94m70 |[0m     assert resp.status_code == 200
+   [1m[94m|[0m                                [1m[91m^^^[0m
+[1m[94m71 |[0m     assert resp.json()["total"] == 1
+   [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `200` with a constant variable[0m
+  [1m[94m-->[0m tests/test_api.py:74:32
+   [1m[94m|[0m
+[1m[94m73 |[0m     resp = await client.get("/api/votes", params={"org": "nonexistent"})
+[1m[94m74 |[0m     assert resp.status_code == 200
+   [1m[94m|[0m                                [1m[91m^^^[0m
+[1m[94m75 |[0m     assert resp.json()["total"] == 0
+   [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `200` with a constant variable[0m
+  [1m[94m-->[0m tests/test_api.py:84:32
+   [1m[94m|[0m
+[1m[94m83 |[0m     resp = await client.get("/api/votes", params={"repo": "widgets"})
+[1m[94m84 |[0m     assert resp.status_code == 200
+   [1m[94m|[0m                                [1m[91m^^^[0m
+[1m[94m85 |[0m     data = resp.json()
+[1m[94m86 |[0m     assert data["total"] == 1
+   [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `200` with a constant variable[0m
+  [1m[94m-->[0m tests/test_api.py:95:32
+   [1m[94m|[0m
+[1m[94m94 |[0m     resp = await client.get("/api/votes", params={"user_id": uid})
+[1m[94m95 |[0m     assert resp.status_code == 200
+   [1m[94m|[0m                                [1m[91m^^^[0m
+[1m[94m96 |[0m     assert resp.json()["total"] == 1
+   [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `200` with a constant variable[0m
+   [1m[94m-->[0m tests/test_api.py:99:32
+    [1m[94m|[0m
+[1m[94m 98 |[0m     resp = await client.get("/api/votes", params={"user_id": 99999})
+[1m[94m 99 |[0m     assert resp.status_code == 200
+    [1m[94m|[0m                                [1m[91m^^^[0m
+[1m[94m100 |[0m     assert resp.json()["total"] == 0
+    [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `2` with a constant variable[0m
+   [1m[94m-->[0m tests/test_api.py:110:29
+    [1m[94m|[0m
+[1m[94m108 |[0m     resp = await client.get("/api/votes", params={"per_page": 1, "page": 1})
+[1m[94m109 |[0m     data = resp.json()
+[1m[94m110 |[0m     assert data["total"] == 2
+    [1m[94m|[0m                             [1m[91m^[0m
+[1m[94m111 |[0m     assert len(data["items"]) == 1
+[1m[94m112 |[0m     assert data["page"] == 1
+    [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `2` with a constant variable[0m
+   [1m[94m-->[0m tests/test_api.py:117:29
+    [1m[94m|[0m
+[1m[94m115 |[0m     resp = await client.get("/api/votes", params={"per_page": 1, "page": 2})
+[1m[94m116 |[0m     data = resp.json()
+[1m[94m117 |[0m     assert data["total"] == 2
+    [1m[94m|[0m                             [1m[91m^[0m
+[1m[94m118 |[0m     assert len(data["items"]) == 1
+[1m[94m119 |[0m     assert data["page"] == 2
+    [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `2` with a constant variable[0m
+   [1m[94m-->[0m tests/test_api.py:119:28
+    [1m[94m|[0m
+[1m[94m117 |[0m     assert data["total"] == 2
+[1m[94m118 |[0m     assert len(data["items"]) == 1
+[1m[94m119 |[0m     assert data["page"] == 2
+    [1m[94m|[0m                            [1m[91m^[0m
+[1m[94m120 |[0m
+[1m[94m121 |[0m     resp = await client.get("/api/votes", params={"per_page": 1, "page": 3})
+    [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `2` with a constant variable[0m
+   [1m[94m-->[0m tests/test_api.py:123:29
+    [1m[94m|[0m
+[1m[94m121 |[0m     resp = await client.get("/api/votes", params={"per_page": 1, "page": 3})
+[1m[94m122 |[0m     data = resp.json()
+[1m[94m123 |[0m     assert data["total"] == 2
+    [1m[94m|[0m                             [1m[91m^[0m
+[1m[94m124 |[0m     assert len(data["items"]) == 0
+    [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `2` with a constant variable[0m
+   [1m[94m-->[0m tests/test_api.py:134:29
+    [1m[94m|[0m
+[1m[94m132 |[0m     resp = await client.get("/api/votes", params={"org": "acme", "per_page": 1, "page": 1})
+[1m[94m133 |[0m     data = resp.json()
+[1m[94m134 |[0m     assert data["total"] == 2
+    [1m[94m|[0m                             [1m[91m^[0m
+[1m[94m135 |[0m     assert len(data["items"]) == 1
+    [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `200` with a constant variable[0m
+   [1m[94m-->[0m tests/test_api.py:144:32
+    [1m[94m|[0m
+[1m[94m142 |[0m     uid = seed_data["user_id"]
+[1m[94m143 |[0m     resp = await client.get(f"/api/users/{uid}/votes")
+[1m[94m144 |[0m     assert resp.status_code == 200
+    [1m[94m|[0m                                [1m[91m^^^[0m
+[1m[94m145 |[0m     assert resp.json() == []
+    [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `200` with a constant variable[0m
+   [1m[94m-->[0m tests/test_api.py:154:32
+    [1m[94m|[0m
+[1m[94m153 |[0m     resp = await client.get(f"/api/users/{uid}/votes")
+[1m[94m154 |[0m     assert resp.status_code == 200
+    [1m[94m|[0m                                [1m[91m^^^[0m
+[1m[94m155 |[0m     assert len(resp.json()) == 2
+    [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `2` with a constant variable[0m
+   [1m[94m-->[0m tests/test_api.py:155:32
+    [1m[94m|[0m
+[1m[94m153 |[0m     resp = await client.get(f"/api/users/{uid}/votes")
+[1m[94m154 |[0m     assert resp.status_code == 200
+[1m[94m155 |[0m     assert len(resp.json()) == 2
+    [1m[94m|[0m                                [1m[91m^[0m
+    [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `200` with a constant variable[0m
+   [1m[94m-->[0m tests/test_api.py:167:32
+    [1m[94m|[0m
+[1m[94m165 |[0m         params={"issue_id": seed_data["issue_id_2"]},
+[1m[94m166 |[0m     )
+[1m[94m167 |[0m     assert resp.status_code == 200
+    [1m[94m|[0m                                [1m[91m^^^[0m
+[1m[94m168 |[0m     data = resp.json()
+[1m[94m169 |[0m     assert len(data) == 1
+    [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `-3` with a constant variable[0m
+   [1m[94m-->[0m tests/test_api.py:171:34
+    [1m[94m|[0m
+[1m[94m169 |[0m     assert len(data) == 1
+[1m[94m170 |[0m     assert data[0]["issue_id"] == seed_data["issue_id_2"]
+[1m[94m171 |[0m     assert data[0]["ranking"] == -3
+    [1m[94m|[0m                                  [1m[91m^^[0m
+    [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `201` with a constant variable[0m
+   [1m[94m-->[0m tests/test_api.py:183:32
+    [1m[94m|[0m
+[1m[94m181 |[0m         json={"issue_id": seed_data["issue_id"], "ranking": 3},
+[1m[94m182 |[0m     )
+[1m[94m183 |[0m     assert resp.status_code == 201
+    [1m[94m|[0m                                [1m[91m^^^[0m
+[1m[94m184 |[0m     data = resp.json()
+[1m[94m185 |[0m     assert data["user_id"] == uid
+    [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `3` with a constant variable[0m
+   [1m[94m-->[0m tests/test_api.py:187:31
+    [1m[94m|[0m
+[1m[94m185 |[0m     assert data["user_id"] == uid
+[1m[94m186 |[0m     assert data["issue_id"] == seed_data["issue_id"]
+[1m[94m187 |[0m     assert data["ranking"] == 3
+    [1m[94m|[0m                               [1m[91m^[0m
+[1m[94m188 |[0m     assert "id" in data
+    [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `201` with a constant variable[0m
+   [1m[94m-->[0m tests/test_api.py:197:32
+    [1m[94m|[0m
+[1m[94m195 |[0m         json={"issue_id": seed_data["issue_id"]},
+[1m[94m196 |[0m     )
+[1m[94m197 |[0m     assert resp.status_code == 201
+    [1m[94m|[0m                                [1m[91m^^^[0m
+[1m[94m198 |[0m     assert resp.json()["ranking"] is None
+    [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `409` with a constant variable[0m
+   [1m[94m-->[0m tests/test_api.py:208:32
+    [1m[94m|[0m
+[1m[94m206 |[0m         json={"issue_id": seed_data["issue_id"]},
+[1m[94m207 |[0m     )
+[1m[94m208 |[0m     assert resp.status_code == 409
+    [1m[94m|[0m                                [1m[91m^^^[0m
+    [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `200` with a constant variable[0m
+   [1m[94m-->[0m tests/test_api.py:222:32
+    [1m[94m|[0m
+[1m[94m220 |[0m         json={"issue_id": seed_data["issue_id"], "ranking": -2},
+[1m[94m221 |[0m     )
+[1m[94m222 |[0m     assert resp.status_code == 200
+    [1m[94m|[0m                                [1m[91m^^^[0m
+[1m[94m223 |[0m     data = resp.json()
+[1m[94m224 |[0m     assert data["ranking"] == -2
+    [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `-2` with a constant variable[0m
+   [1m[94m-->[0m tests/test_api.py:224:31
+    [1m[94m|[0m
+[1m[94m222 |[0m     assert resp.status_code == 200
+[1m[94m223 |[0m     data = resp.json()
+[1m[94m224 |[0m     assert data["ranking"] == -2
+    [1m[94m|[0m                               [1m[91m^^[0m
+[1m[94m225 |[0m     assert data["issue_id"] == seed_data["issue_id"]
+    [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `404` with a constant variable[0m
+   [1m[94m-->[0m tests/test_api.py:234:32
+    [1m[94m|[0m
+[1m[94m232 |[0m         json={"issue_id": seed_data["issue_id"], "ranking": 1},
+[1m[94m233 |[0m     )
+[1m[94m234 |[0m     assert resp.status_code == 404
+    [1m[94m|[0m                                [1m[91m^^^[0m
+    [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `307` with a constant variable[0m
+  [1m[94m-->[0m tests/test_auth.py:15:32
+   [1m[94m|[0m
+[1m[94m13 |[0m async def test_login_redirects_to_github(client: AsyncClient) -> None:
+[1m[94m14 |[0m     resp = await client.get("/login", follow_redirects=False)
+[1m[94m15 |[0m     assert resp.status_code == 307
+   [1m[94m|[0m                                [1m[91m^^^[0m
+[1m[94m16 |[0m     location = resp.headers["location"]
+[1m[94m17 |[0m     assert "github.com/login/oauth/authorize" in location
+   [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `403` with a constant variable[0m
+  [1m[94m-->[0m tests/test_auth.py:28:32
+   [1m[94m|[0m
+[1m[94m26 |[0m async def test_callback_bad_state_returns_403(client: AsyncClient) -> None:
+[1m[94m27 |[0m     resp = await client.get("/auth/callback", params={"code": "abc", "state": "garbage"})
+[1m[94m28 |[0m     assert resp.status_code == 403
+   [1m[94m|[0m                                [1m[91m^^^[0m
+   [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `403` with a constant variable[0m
+  [1m[94m-->[0m tests/test_auth.py:37:32
+   [1m[94m|[0m
+[1m[94m35 |[0m         resp = await client.get("/auth/callback", params={"code": "abc", "state": state})
+[1m[94m36 |[0m
+[1m[94m37 |[0m     assert resp.status_code == 403
+   [1m[94m|[0m                                [1m[91m^^^[0m
+[1m[94m38 |[0m     assert "expired" in resp.json()["detail"].lower()
+   [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `303` with a constant variable[0m
+  [1m[94m-->[0m tests/test_auth.py:77:32
+   [1m[94m|[0m
+[1m[94m75 |[0m         )
+[1m[94m76 |[0m
+[1m[94m77 |[0m     assert resp.status_code == 303
+   [1m[94m|[0m                                [1m[91m^^^[0m
+[1m[94m78 |[0m     assert "/vote" in resp.headers["location"]
+   [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `303` with a constant variable[0m
+   [1m[94m-->[0m tests/test_auth.py:116:32
+    [1m[94m|[0m
+[1m[94m114 |[0m         )
+[1m[94m115 |[0m
+[1m[94m116 |[0m     assert resp.status_code == 303
+    [1m[94m|[0m                                [1m[91m^^^[0m
+    [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `307` with a constant variable[0m
+   [1m[94m-->[0m tests/test_auth.py:121:32
+    [1m[94m|[0m
+[1m[94m119 |[0m async def test_logout_clears_session(client: AsyncClient) -> None:
+[1m[94m120 |[0m     resp = await client.get("/logout", follow_redirects=False)
+[1m[94m121 |[0m     assert resp.status_code == 307
+    [1m[94m|[0m                                [1m[91m^^^[0m
+[1m[94m122 |[0m     assert "/login" in resp.headers["location"]
+    [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `200` with a constant variable[0m
+  [1m[94m-->[0m tests/test_html_routes.py:14:32
+   [1m[94m|[0m
+[1m[94m12 |[0m async def test_index_shows_login_when_anonymous(client: AsyncClient) -> None:
+[1m[94m13 |[0m     resp = await client.get("/", follow_redirects=False)
+[1m[94m14 |[0m     assert resp.status_code == 200
+   [1m[94m|[0m                                [1m[91m^^^[0m
+[1m[94m15 |[0m     assert "login" in resp.text.lower()
+   [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `303` with a constant variable[0m
+  [1m[94m-->[0m tests/test_html_routes.py:25:32
+   [1m[94m|[0m
+[1m[94m23 |[0m async def test_vote_redirect_to_login_when_anonymous(client: AsyncClient) -> None:
+[1m[94m24 |[0m     resp = await client.get("/vote", follow_redirects=False)
+[1m[94m25 |[0m     assert resp.status_code == 303
+   [1m[94m|[0m                                [1m[91m^^^[0m
+[1m[94m26 |[0m     assert "/login" in resp.headers["location"]
+   [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `303` with a constant variable[0m
+  [1m[94m-->[0m tests/test_html_routes.py:32:32
+   [1m[94m|[0m
+[1m[94m30 |[0m     with patch("app.routes.current_user_id", return_value=seed_data["user_id"]):
+[1m[94m31 |[0m         resp = await client.get("/vote", follow_redirects=False)
+[1m[94m32 |[0m     assert resp.status_code == 303
+   [1m[94m|[0m                                [1m[91m^^^[0m
+[1m[94m33 |[0m     assert "/vote/" in resp.headers["location"]
+   [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `200` with a constant variable[0m
+  [1m[94m-->[0m tests/test_html_routes.py:51:32
+   [1m[94m|[0m
+[1m[94m49 |[0m     with patch("app.routes.current_user_id", return_value=uid):
+[1m[94m50 |[0m         resp = await client.get("/vote", follow_redirects=False)
+[1m[94m51 |[0m     assert resp.status_code == 200
+   [1m[94m|[0m                                [1m[91m^^^[0m
+   [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `200` with a constant variable[0m
+  [1m[94m-->[0m tests/test_html_routes.py:62:32
+   [1m[94m|[0m
+[1m[94m60 |[0m     with patch("app.routes.current_user_id", return_value=seed_data["user_id"]):
+[1m[94m61 |[0m         resp = await client.get("/vote/acme/widgets/1")
+[1m[94m62 |[0m     assert resp.status_code == 200
+   [1m[94m|[0m                                [1m[91m^^^[0m
+[1m[94m63 |[0m     assert "Fix the widget" in resp.text
+   [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `303` with a constant variable[0m
+  [1m[94m-->[0m tests/test_html_routes.py:68:32
+   [1m[94m|[0m
+[1m[94m66 |[0m async def test_vote_page_redirects_anonymous(client: AsyncClient) -> None:
+[1m[94m67 |[0m     resp = await client.get("/vote/acme/widgets/1", follow_redirects=False)
+[1m[94m68 |[0m     assert resp.status_code == 303
+   [1m[94m|[0m                                [1m[91m^^^[0m
+[1m[94m69 |[0m     assert "/login" in resp.headers["location"]
+   [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `404` with a constant variable[0m
+  [1m[94m-->[0m tests/test_html_routes.py:75:32
+   [1m[94m|[0m
+[1m[94m73 |[0m     with patch("app.routes.current_user_id", return_value=seed_data["user_id"]):
+[1m[94m74 |[0m         resp = await client.get("/vote/nope/missing/999")
+[1m[94m75 |[0m     assert resp.status_code == 404
+   [1m[94m|[0m                                [1m[91m^^^[0m
+   [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `200` with a constant variable[0m
+  [1m[94m-->[0m tests/test_html_routes.py:87:32
+   [1m[94m|[0m
+[1m[94m85 |[0m     with patch("app.routes.current_user_id", return_value=uid):
+[1m[94m86 |[0m         resp = await client.get("/vote/acme/widgets/1")
+[1m[94m87 |[0m     assert resp.status_code == 200
+   [1m[94m|[0m                                [1m[91m^^^[0m
+   [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `303` with a constant variable[0m
+   [1m[94m-->[0m tests/test_html_routes.py:101:32
+    [1m[94m|[0m
+[1m[94m 99 |[0m         follow_redirects=False,
+[1m[94m100 |[0m     )
+[1m[94m101 |[0m     assert resp.status_code == 303
+    [1m[94m|[0m                                [1m[91m^^^[0m
+[1m[94m102 |[0m     assert "/login" in resp.headers["location"]
+    [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `303` with a constant variable[0m
+   [1m[94m-->[0m tests/test_html_routes.py:113:32
+    [1m[94m|[0m
+[1m[94m111 |[0m             follow_redirects=False,
+[1m[94m112 |[0m         )
+[1m[94m113 |[0m     assert resp.status_code == 303
+    [1m[94m|[0m                                [1m[91m^^^[0m
+[1m[94m114 |[0m     location = resp.headers["location"]
+[1m[94m115 |[0m     assert "/vote/" in location or "/vote/done" in location
+    [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `303` with a constant variable[0m
+   [1m[94m-->[0m tests/test_html_routes.py:131:32
+    [1m[94m|[0m
+[1m[94m129 |[0m             follow_redirects=False,
+[1m[94m130 |[0m         )
+[1m[94m131 |[0m     assert resp.status_code == 303
+    [1m[94m|[0m                                [1m[91m^^^[0m
+    [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `303` with a constant variable[0m
+   [1m[94m-->[0m tests/test_html_routes.py:147:32
+    [1m[94m|[0m
+[1m[94m145 |[0m             follow_redirects=False,
+[1m[94m146 |[0m         )
+[1m[94m147 |[0m     assert resp.status_code == 303
+    [1m[94m|[0m                                [1m[91m^^^[0m
+[1m[94m148 |[0m     assert "/vote/done" in resp.headers["location"]
+    [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `200` with a constant variable[0m
+   [1m[94m-->[0m tests/test_html_routes.py:159:32
+    [1m[94m|[0m
+[1m[94m157 |[0m     with patch("app.routes.current_user_id", return_value=seed_data["user_id"]):
+[1m[94m158 |[0m         resp = await client.get("/vote/done")
+[1m[94m159 |[0m     assert resp.status_code == 200
+    [1m[94m|[0m                                [1m[91m^^^[0m
+    [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `303` with a constant variable[0m
+   [1m[94m-->[0m tests/test_html_routes.py:164:32
+    [1m[94m|[0m
+[1m[94m162 |[0m async def test_vote_done_redirects_anonymous(client: AsyncClient) -> None:
+[1m[94m163 |[0m     resp = await client.get("/vote/done", follow_redirects=False)
+[1m[94m164 |[0m     assert resp.status_code == 303
+    [1m[94m|[0m                                [1m[91m^^^[0m
+[1m[94m165 |[0m     assert "/login" in resp.headers["location"]
+    [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `303` with a constant variable[0m
+   [1m[94m-->[0m tests/test_html_routes.py:175:32
+    [1m[94m|[0m
+[1m[94m173 |[0m async def test_results_page_redirects_anonymous(client: AsyncClient) -> None:
+[1m[94m174 |[0m     resp = await client.get("/votes", follow_redirects=False)
+[1m[94m175 |[0m     assert resp.status_code == 303
+    [1m[94m|[0m                                [1m[91m^^^[0m
+[1m[94m176 |[0m     assert "/login" in resp.headers["location"]
+    [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `200` with a constant variable[0m
+   [1m[94m-->[0m tests/test_html_routes.py:182:32
+    [1m[94m|[0m
+[1m[94m180 |[0m     with patch("app.routes.current_user_id", return_value=seed_data["user_id"]):
+[1m[94m181 |[0m         resp = await client.get("/votes")
+[1m[94m182 |[0m     assert resp.status_code == 200
+    [1m[94m|[0m                                [1m[91m^^^[0m
+    [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `200` with a constant variable[0m
+   [1m[94m-->[0m tests/test_html_routes.py:188:32
+    [1m[94m|[0m
+[1m[94m186 |[0m     with patch("app.routes.current_user_id", return_value=seed_data["user_id"]):
+[1m[94m187 |[0m         resp = await client.get("/votes", params={"sort_by": "title", "order": "asc"})
+[1m[94m188 |[0m     assert resp.status_code == 200
+    [1m[94m|[0m                                [1m[91m^^^[0m
+    [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `200` with a constant variable[0m
+   [1m[94m-->[0m tests/test_html_routes.py:194:32
+    [1m[94m|[0m
+[1m[94m192 |[0m     with patch("app.routes.current_user_id", return_value=seed_data["user_id"]):
+[1m[94m193 |[0m         resp = await client.get("/votes", params={"sort_by": "vote_count", "order": "desc"})
+[1m[94m194 |[0m     assert resp.status_code == 200
+    [1m[94m|[0m                                [1m[91m^^^[0m
+    [1m[94m|[0m
+
+[1m[91mPLR2004 [0m[1mMagic value used in comparison, consider replacing `200` with a constant variable[0m
+   [1m[94m-->[0m tests/test_html_routes.py:200:32
+    [1m[94m|[0m
+[1m[94m198 |[0m     with patch("app.routes.current_user_id", return_value=seed_data["user_id"]):
+[1m[94m199 |[0m         resp = await client.get("/votes", params={"sort_by": "nonexistent"})
+[1m[94m200 |[0m     assert resp.status_code == 200
+    [1m[94m|[0m                                [1m[91m^^^[0m
+    [1m[94m|[0m
+
+Found 57 errors.
