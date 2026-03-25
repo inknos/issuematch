@@ -119,4 +119,4 @@ async def test_callback_creates_new_user(client: AsyncClient) -> None:
 async def test_logout_clears_session(client: AsyncClient) -> None:
     resp = await client.get("/logout", follow_redirects=False)
     assert resp.status_code == 307
-    assert "/login" in resp.headers["location"]
+    assert resp.headers["location"] == "/"

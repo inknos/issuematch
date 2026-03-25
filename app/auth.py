@@ -111,7 +111,7 @@ async def auth_callback(
 async def logout(request: Request) -> RedirectResponse:
     """Clear the session and redirect to the login page."""
     request.session.clear()
-    return RedirectResponse(url="/login")
+    return RedirectResponse(url="/")
 
 
 def current_user_id(request: Request) -> int | None:
