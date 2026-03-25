@@ -47,9 +47,19 @@
           {% endif %}
         </td>
         <td class="text-end">{{ r.vote_count }}</td>
-        <td class="text-center">
+        <td class="text-center text-nowrap">
           <a href="/vote/{{ r.org }}/{{ r.repo }}/{{ r.type }}/{{ r.number }}"
              class="btn btn-sm btn-outline-primary">Vote</a>
+          {% if r.issue_id in user_votes %}
+          <button type="button"
+                  class="btn btn-sm btn-outline-danger ms-1 btn-delete-vote"
+                  data-user-id="{{ current_user_id }}"
+                  data-vote-id="{{ user_votes[r.issue_id] }}">Delete</button>
+          {% else %}
+          <button type="button"
+                  class="btn btn-sm btn-outline-danger ms-1"
+                  disabled>Delete</button>
+          {% endif %}
         </td>
       </tr>
       {% endfor %}
@@ -95,4 +105,19 @@
 {% else %}
 <p class="text-muted">No issues yet. Run <code>python fetch_issues.py</code> to import some.</p>
 {% endif %}
+
+<script>
+document.querySelectorAll(".btn-delete-vote").forEach(function (btn) {
+  btn.addEventListener("click", function () {
+    if (!confirm("Delete this vote?")) return;
+    var userId = btn.dataset.userId;
+    var voteId = btn.dataset.voteId;
+    fetch("/api/users/" + userId + "/votes/" + voteId, { method: "DELETE" })
+      .then(function (resp) {
+        if (resp.ok) location.reload();
+        else alert("Failed to delete vote.");
+      });
+  });
+});
+</script>
 {% endblock %}

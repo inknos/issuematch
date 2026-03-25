@@ -5,9 +5,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 
 from app.auth import current_user_id, require_role
 from app.crypto import decrypt_token, encrypt_token
@@ -56,6 +56,18 @@ def _issue_vote_url(issue: Issue) -> str:
 def _log_action(session: AsyncSession, user_id: int, action: dict) -> None:
     """Append an audit-log entry (committed with the caller's transaction)."""
     session.add(AuditLog(user_id=user_id, action=action))
+
+
+ACTION_LABELS: dict[str, tuple[str, str]] = {
+    "vote_create": ("Voted", "bg-success"),
+    "vote_update": ("Vote Updated", "bg-primary"),
+    "vote_delete": ("Vote Deleted", "bg-danger"),
+    "login": ("Logged In", "bg-info text-dark"),
+    "logout": ("Logged Out", "bg-secondary"),
+    "role_change": ("Role Changed", "bg-warning text-dark"),
+    "token_update": ("Token Updated", "bg-dark"),
+    "fetch": ("Fetched", "bg-dark"),
+}
 
 
 async def _next_issue(session: AsyncSession) -> Issue | None:
@@ -214,6 +226,7 @@ async def activity_page(
     session: SessionDep,
     page: int = 1,
     per_page: int = 20,
+    action_type: str | None = None,
 ) -> HTMLResponse:
     """Render the paginated activity log for the current user."""
     uid = current_user_id(request)
@@ -221,6 +234,9 @@ async def activity_page(
         return RedirectResponse(url="/login", status_code=303)  # type: ignore[return-value]
 
     base = select(AuditLog).where(AuditLog.user_id == uid)
+
+    if action_type:
+        base = base.where(AuditLog.action["type"].as_string() == action_type.lower())
 
     count_result = await session.execute(select(func.count()).select_from(base.subquery()))
     total = count_result.scalar_one()
@@ -240,6 +256,8 @@ async def activity_page(
             "page": page,
             "per_page": per_page,
             "total_pages": total_pages,
+            "action_type": action_type.lower() if action_type else None,
+            "action_labels": ACTION_LABELS,
         },
     )
 
@@ -266,6 +284,12 @@ async def results_page(
         per_page=per_page,
     )
     total_pages = max(1, -(-total // per_page))  # ceil division
+
+    vote_result = await session.execute(
+        select(Vote.issue_id, Vote.id).where(Vote.user_id == uid),
+    )
+    user_votes = {row.issue_id: row.id for row in vote_result.all()}
+
     return templates.TemplateResponse(
         "results.html",
         {
@@ -276,6 +300,8 @@ async def results_page(
             "page": page,
             "per_page": per_page,
             "total_pages": total_pages,
+            "user_votes": user_votes,
+            "current_user_id": uid,
         },
     )
 
@@ -387,6 +413,33 @@ async def update_user_vote(
     await session.commit()
     await session.refresh(vote)
     return vote
+
+
+@router.delete("/api/users/{user_id}/votes/{vote_id}", status_code=204)
+async def delete_user_vote(
+    user_id: int,
+    vote_id: int,
+    session: SessionDep,
+) -> Response:
+    """Delete a specific vote owned by the given user; 404 if not found."""
+    result = await session.execute(
+        select(Vote).where(Vote.id == vote_id, Vote.user_id == user_id),
+    )
+    vote = result.scalar_one_or_none()
+    if vote is None:
+        raise HTTPException(status_code=404, detail="Vote not found")
+    _log_action(
+        session,
+        user_id,
+        {
+            "type": "vote_delete",
+            "issue_id": vote.issue_id,
+            "ranking": vote.ranking,
+        },
+    )
+    await session.execute(delete(Vote).where(Vote.id == vote_id))
+    await session.commit()
+    return Response(status_code=204)
 
 
 # ---------------------------------------------------------------------------

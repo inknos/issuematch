@@ -239,6 +239,51 @@ async def test_update_vote_not_found(client: AsyncClient, seed_data: dict) -> No
     assert resp.status_code == 404
 
 
+# --- User votes (DELETE) ---
+
+
+async def test_delete_vote(client: AsyncClient, seed_data: dict) -> None:
+    uid = seed_data["user_id"]
+    create_resp = await _create_vote(client, uid, seed_data["issue_id"], 2)
+    vote_id = create_resp.json()["id"]
+
+    resp = await client.delete(f"/api/users/{uid}/votes/{vote_id}")
+    assert resp.status_code == 204
+
+    get_resp = await client.get(f"/api/users/{uid}/votes")
+    assert get_resp.json() == []
+
+
+async def test_delete_vote_not_found(client: AsyncClient, seed_data: dict) -> None:
+    uid = seed_data["user_id"]
+    resp = await client.delete(f"/api/users/{uid}/votes/99999")
+    assert resp.status_code == 404
+
+
+async def test_delete_vote_wrong_user(client: AsyncClient, seed_data: dict) -> None:
+    uid = seed_data["user_id"]
+    create_resp = await _create_vote(client, uid, seed_data["issue_id"], 1)
+    vote_id = create_resp.json()["id"]
+
+    resp = await client.delete(f"/api/users/99999/votes/{vote_id}")
+    assert resp.status_code == 404
+
+
+async def test_delete_vote_creates_audit_entry(client: AsyncClient, seed_data: dict) -> None:
+    uid = seed_data["user_id"]
+    create_resp = await _create_vote(client, uid, seed_data["issue_id"], 3)
+    vote_id = create_resp.json()["id"]
+
+    await client.delete(f"/api/users/{uid}/votes/{vote_id}")
+
+    activity_resp = await client.get("/api/activity", params={"user_id": uid})
+    entries = activity_resp.json()["items"]
+    delete_entries = [e for e in entries if e["action"]["type"] == "vote_delete"]
+    assert len(delete_entries) == 1
+    assert delete_entries[0]["action"]["issue_id"] == seed_data["issue_id"]
+    assert delete_entries[0]["action"]["ranking"] == 3
+
+
 # ---------------------------------------------------------------------------
 # GET /api/activity  (paginated envelope)
 # ---------------------------------------------------------------------------

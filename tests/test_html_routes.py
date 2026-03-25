@@ -263,4 +263,39 @@ async def test_activity_page_shows_vote_update(client: AsyncClient, seed_data: d
     with patch("app.routes.current_user_id", return_value=uid):
         resp = await client.get("/activity")
     assert resp.status_code == 200
-    assert "Updated vote" in resp.text
+    assert "Vote Updated" in resp.text
+
+
+# ---------------------------------------------------------------------------
+# /votes (GET) — delete button presence
+# ---------------------------------------------------------------------------
+
+
+async def test_results_page_shows_delete_button_for_voted_issue(
+    client: AsyncClient,
+    seed_data: dict,
+) -> None:
+    uid = seed_data["user_id"]
+    create_resp = await client.post(
+        f"/api/users/{uid}/votes",
+        json={"issue_id": seed_data["issue_id"], "ranking": 2},
+    )
+    vote_id = create_resp.json()["id"]
+
+    with patch("app.routes.current_user_id", return_value=uid):
+        resp = await client.get("/votes")
+    assert resp.status_code == 200
+    assert "btn-delete-vote" in resp.text
+    assert f'data-vote-id="{vote_id}"' in resp.text
+
+
+async def test_results_page_no_delete_button_when_not_voted(
+    client: AsyncClient,
+    seed_data: dict,
+) -> None:
+    uid = seed_data["user_id"]
+
+    with patch("app.routes.current_user_id", return_value=uid):
+        resp = await client.get("/votes")
+    assert resp.status_code == 200
+    assert 'data-vote-id="' not in resp.text
