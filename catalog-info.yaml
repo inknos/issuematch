@@ -1,0 +1,17 @@
+# catalog-info.yaml
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: issuematch
+  description: A Python app to rank upstream issues
+  annotations:
+    # Link to your source code repository
+    # github.com/project-slug: your-org/your-repo
+    # Link to your deployed application (if applicable)
+    # compass.redhat.com/deployment-url: https://my-python-app.your-cluster.com
+spec:
+  type: service
+  lifecycle: experimental
+  owner: user:container-tools/nsella # Replace with your team/user
+  providesApis:
+    - issuematch-api
