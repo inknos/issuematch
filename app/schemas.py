@@ -1,6 +1,8 @@
-"""Pydantic request/response schemas for the vote API."""
+"""Pydantic request/response schemas for the vote and audit-log APIs."""
 
 from __future__ import annotations
+
+from datetime import datetime  # noqa: TC003 — Pydantic needs this at runtime
 
 from pydantic import BaseModel
 
@@ -12,6 +14,7 @@ class VoteOut(BaseModel):
     user_id: int
     issue_id: str
     ranking: int | None
+    created_at: datetime
 
     model_config = {"from_attributes": True}
 
@@ -34,6 +37,26 @@ class PaginatedVotes(BaseModel):
     """Paginated envelope for vote listings."""
 
     items: list[VoteOut]
+    total: int
+    page: int
+    per_page: int
+
+
+class AuditLogOut(BaseModel):
+    """Read-only representation of an audit-log entry."""
+
+    id: int
+    user_id: int
+    timestamp: datetime
+    action: dict
+
+    model_config = {"from_attributes": True}
+
+
+class PaginatedAuditLog(BaseModel):
+    """Paginated envelope for audit-log listings."""
+
+    items: list[AuditLogOut]
     total: int
     page: int
     per_page: int

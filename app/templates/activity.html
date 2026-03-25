@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Activity — IssueMatch{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">Your Activity</h2>
+
+{% if entries %}
+<div class="table-responsive">
+  <table class="table table-striped align-middle">
+    <thead>
+      <tr>
+        <th>Time</th>
+        <th>Action</th>
+        <th>Details</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for e in entries %}
+      <tr>
+        <td class="text-nowrap">{{ e.timestamp.strftime("%Y-%m-%d %H:%M:%S") }}</td>
+        <td>
+          {% if e.action.type == "vote_create" %}
+            <span class="badge bg-success">Voted</span>
+          {% elif e.action.type == "vote_update" %}
+            <span class="badge bg-primary">Updated vote</span>
+          {% elif e.action.type == "login" %}
+            <span class="badge bg-info text-dark">Logged in</span>
+          {% elif e.action.type == "logout" %}
+            <span class="badge bg-secondary">Logged out</span>
+          {% else %}
+            <span class="badge bg-dark">{{ e.action.type }}</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if e.action.type in ("vote_create", "vote_update") %}
+            {% set parts = e.action.issue_id.split('/') %}
+            {% set repo_num = parts[1].split('#') %}
+            {% set vote_url = "/vote/" ~ parts[0] ~ "/" ~ repo_num[0] ~ "/" ~ repo_num[1] %}
+          {% endif %}
+          {% if e.action.type == "vote_create" %}
+            <a href="{{ vote_url }}"><code>{{ e.action.issue_id }}</code></a>
+            &rarr; ranking <strong>{{ e.action.ranking }}</strong>
+          {% elif e.action.type == "vote_update" %}
+            <a href="{{ vote_url }}"><code>{{ e.action.issue_id }}</code></a>
+            &rarr; ranking <strong>{{ e.action.old_ranking }}</strong> &rarr; <strong>{{ e.action.new_ranking }}</strong>
+          {% else %}
+            <span class="text-muted">—</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if total_pages > 1 %}
+<nav>
+  <ul class="pagination justify-content-center">
+    <li class="page-item {% if page <= 1 %}disabled{% endif %}">
+      <a class="page-link"
+         href="/activity?page={{ page - 1 }}&per_page={{ per_page }}">
+        &laquo; Prev
+      </a>
+    </li>
+
+    {% for p in range(1, total_pages + 1) %}
+      {% if p == page %}
+        <li class="page-item active"><span class="page-link">{{ p }}</span></li>
+      {% elif p <= 3 or p > total_pages - 2 or (p >= page - 1 and p <= page + 1) %}
+        <li class="page-item">
+          <a class="page-link"
+             href="/activity?page={{ p }}&per_page={{ per_page }}">
+            {{ p }}
+          </a>
+        </li>
+      {% elif p == 4 or p == total_pages - 2 %}
+        <li class="page-item disabled"><span class="page-link">…</span></li>
+      {% endif %}
+    {% endfor %}
+
+    <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
+      <a class="page-link"
+         href="/activity?page={{ page + 1 }}&per_page={{ per_page }}">
+        Next &raquo;
+      </a>
+    </li>
+  </ul>
+</nav>
+{% endif %}
+
+{% else %}
+<p class="text-muted">No activity yet.</p>
+{% endif %}
+{% endblock %}

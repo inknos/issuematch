@@ -27,6 +27,7 @@
       <a class="navbar-brand fw-bold" href="/vote">IssueMatch</a>
       <div class="d-flex align-items-center gap-3">
         <a class="nav-link" href="/votes">Votes</a>
+        <a class="nav-link" href="/activity">Activity</a>
         {% if request.session.get("username") %}
           <span class="text-muted small">{{ request.session["username"] }}</span>
           <a class="btn btn-outline-secondary btn-sm" href="/logout">Logout</a>

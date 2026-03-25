@@ -12,7 +12,7 @@ from sqlalchemy import select
 
 from app.config import BASE_URL, GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, SESSION_SECRET
 from app.database import SessionDep  # noqa: TC001 — runtime-evaluated by FastAPI DI
-from app.models import User
+from app.models import AuditLog, User
 
 router = APIRouter()
 
@@ -92,11 +92,13 @@ async def auth_callback(
             access_token=access_token,
         )
         session.add(user)
+        await session.flush()
     else:
         user.username = gh_user["login"]
         user.avatar_url = gh_user.get("avatar_url")
         user.access_token = access_token
 
+    session.add(AuditLog(user_id=user.id, action={"type": "login"}))
     await session.commit()
     await session.refresh(user)
 
@@ -108,8 +110,12 @@ async def auth_callback(
 
 
 @router.get("/logout")
-async def logout(request: Request) -> RedirectResponse:
+async def logout(request: Request, session: SessionDep) -> RedirectResponse:
     """Clear the session and redirect to the login page."""
+    uid = current_user_id(request)
+    if uid is not None:
+        session.add(AuditLog(user_id=uid, action={"type": "logout"}))
+        await session.commit()
     request.session.clear()
     return RedirectResponse(url="/")
 

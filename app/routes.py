@@ -14,8 +14,15 @@ from app.database import SessionDep  # noqa: TC001 — runtime-evaluated by Fast
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
-from app.models import Issue, Vote
-from app.schemas import PaginatedVotes, VoteCreate, VoteOut, VoteUpdate
+from app.models import AuditLog, Issue, Vote
+from app.schemas import (
+    AuditLogOut,
+    PaginatedAuditLog,
+    PaginatedVotes,
+    VoteCreate,
+    VoteOut,
+    VoteUpdate,
+)
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -35,6 +42,11 @@ def _require_login(request: Request) -> int:
 
 def _issue_vote_url(issue: Issue) -> str:
     return f"/vote/{issue.org}/{issue.repo}/{issue.number}"
+
+
+def _log_action(session: AsyncSession, user_id: int, action: dict) -> None:
+    """Append an audit-log entry (committed with the caller's transaction)."""
+    session.add(AuditLog(user_id=user_id, action=action))
 
 
 async def _next_issue(session: AsyncSession) -> Issue | None:
@@ -151,8 +163,24 @@ async def submit_vote(
         if vote is None:
             vote = Vote(user_id=uid, issue_id=str(issue_id), ranking=ranking)
             session.add(vote)
+            _log_action(
+                session,
+                uid,
+                {"type": "vote_create", "issue_id": str(issue_id), "ranking": ranking},
+            )
         else:
+            old_ranking = vote.ranking
             vote.ranking = ranking
+            _log_action(
+                session,
+                uid,
+                {
+                    "type": "vote_update",
+                    "issue_id": str(issue_id),
+                    "old_ranking": old_ranking,
+                    "new_ranking": ranking,
+                },
+            )
         await session.commit()
 
     issue = await _next_issue(session)
@@ -168,6 +196,42 @@ async def vote_done(request: Request) -> HTMLResponse:
     if uid is None:
         return RedirectResponse(url="/login", status_code=303)  # type: ignore[return-value]
     return templates.TemplateResponse("vote.html", {"request": request, "issue": None})
+
+
+@router.get("/activity", response_class=HTMLResponse)
+async def activity_page(
+    request: Request,
+    session: SessionDep,
+    page: int = 1,
+    per_page: int = 20,
+) -> HTMLResponse:
+    """Render the paginated activity log for the current user."""
+    uid = current_user_id(request)
+    if uid is None:
+        return RedirectResponse(url="/login", status_code=303)  # type: ignore[return-value]
+
+    base = select(AuditLog).where(AuditLog.user_id == uid)
+
+    count_result = await session.execute(select(func.count()).select_from(base.subquery()))
+    total = count_result.scalar_one()
+
+    offset = (max(page, 1) - 1) * per_page
+    result = await session.execute(
+        base.order_by(AuditLog.timestamp.desc()).offset(offset).limit(per_page),
+    )
+    entries = list(result.scalars().all())
+
+    total_pages = max(1, -(-total // per_page))
+    return templates.TemplateResponse(
+        "activity.html",
+        {
+            "request": request,
+            "entries": entries,
+            "page": page,
+            "per_page": per_page,
+            "total_pages": total_pages,
+        },
+    )
 
 
 @router.get("/votes", response_class=HTMLResponse)
@@ -275,6 +339,11 @@ async def create_user_vote(
         raise HTTPException(status_code=409, detail="Vote already exists")
     vote = Vote(user_id=user_id, issue_id=body.issue_id, ranking=body.ranking)
     session.add(vote)
+    _log_action(
+        session,
+        user_id,
+        {"type": "vote_create", "issue_id": body.issue_id, "ranking": body.ranking},
+    )
     await session.commit()
     await session.refresh(vote)
     return vote
@@ -293,10 +362,62 @@ async def update_user_vote(
     vote = result.scalar_one_or_none()
     if vote is None:
         raise HTTPException(status_code=404, detail="Vote not found")
+    old_ranking = vote.ranking
     vote.ranking = body.ranking
+    _log_action(
+        session,
+        user_id,
+        {
+            "type": "vote_update",
+            "issue_id": body.issue_id,
+            "old_ranking": old_ranking,
+            "new_ranking": body.ranking,
+        },
+    )
     await session.commit()
     await session.refresh(vote)
     return vote
+
+
+# ---------------------------------------------------------------------------
+# Activity log API
+# ---------------------------------------------------------------------------
+
+
+@router.get("/api/activity", response_model=PaginatedAuditLog)
+async def list_activity(
+    session: SessionDep,
+    user_id: int | None = None,
+    page: int = 1,
+    per_page: int = 20,
+) -> dict:
+    """Return a paginated, optionally user-filtered activity log."""
+    base = select(AuditLog)
+    if user_id is not None:
+        base = base.where(AuditLog.user_id == user_id)
+
+    count_result = await session.execute(select(func.count()).select_from(base.subquery()))
+    total = count_result.scalar_one()
+
+    offset = (max(page, 1) - 1) * per_page
+    result = await session.execute(
+        base.order_by(AuditLog.timestamp.desc()).offset(offset).limit(per_page),
+    )
+    items = list(result.scalars().all())
+
+    return {"items": items, "total": total, "page": page, "per_page": per_page}
+
+
+@router.get("/api/users/{user_id}/activity", response_model=list[AuditLogOut])
+async def get_user_activity(
+    user_id: int,
+    session: SessionDep,
+) -> list[AuditLog]:
+    """Return all activity-log entries for a user, newest first."""
+    result = await session.execute(
+        select(AuditLog).where(AuditLog.user_id == user_id).order_by(AuditLog.timestamp.desc()),
+    )
+    return list(result.scalars().all())
 
 
 # ---------------------------------------------------------------------------

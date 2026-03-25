@@ -215,3 +215,52 @@ async def test_results_page_unknown_sort_falls_back(client: AsyncClient, seed_da
     with patch("app.routes.current_user_id", return_value=seed_data["user_id"]):
         resp = await client.get("/votes", params={"sort_by": "nonexistent"})
     assert resp.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# /activity (GET) — activity log page
+# ---------------------------------------------------------------------------
+
+
+async def test_activity_page_redirects_anonymous(client: AsyncClient) -> None:
+    resp = await client.get("/activity", follow_redirects=False)
+    assert resp.status_code == 303
+    assert "/login" in resp.headers["location"]
+
+
+async def test_activity_page_renders_empty(client: AsyncClient, seed_data: dict) -> None:
+    with patch("app.routes.current_user_id", return_value=seed_data["user_id"]):
+        resp = await client.get("/activity")
+    assert resp.status_code == 200
+    assert "No activity yet" in resp.text
+
+
+async def test_activity_page_shows_entries(client: AsyncClient, seed_data: dict) -> None:
+    uid = seed_data["user_id"]
+    await client.post(
+        f"/api/users/{uid}/votes",
+        json={"issue_id": seed_data["issue_id"], "ranking": 2},
+    )
+
+    with patch("app.routes.current_user_id", return_value=uid):
+        resp = await client.get("/activity")
+    assert resp.status_code == 200
+    assert "Voted" in resp.text
+    assert seed_data["issue_id"] in resp.text
+
+
+async def test_activity_page_shows_vote_update(client: AsyncClient, seed_data: dict) -> None:
+    uid = seed_data["user_id"]
+    await client.post(
+        f"/api/users/{uid}/votes",
+        json={"issue_id": seed_data["issue_id"], "ranking": 1},
+    )
+    await client.put(
+        f"/api/users/{uid}/votes",
+        json={"issue_id": seed_data["issue_id"], "ranking": -2},
+    )
+
+    with patch("app.routes.current_user_id", return_value=uid):
+        resp = await client.get("/activity")
+    assert resp.status_code == 200
+    assert "Updated vote" in resp.text

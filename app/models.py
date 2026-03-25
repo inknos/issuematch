@@ -75,6 +75,28 @@ class Vote(Base):
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
     issue_id: Mapped[str] = mapped_column(String, ForeignKey("issues.id"), nullable=False)
     ranking: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+    )
 
     user: Mapped[User] = relationship(back_populates="votes")
     issue: Mapped[Issue] = relationship(back_populates="votes")
+
+
+class AuditLog(Base):
+    """Immutable record of a user action (vote, login, logout, etc.)."""
+
+    __tablename__ = "audit_log"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+    )
+    action: Mapped[dict] = mapped_column(JSON, nullable=False)
+
+    user: Mapped[User] = relationship()
