@@ -7,7 +7,6 @@ dependencies = [
     "fastapi",
     "uvicorn[standard]",
     "sqlalchemy[asyncio]",
-    "aiosqlite",
     "asyncpg",
     "alembic",
     "httpx",
@@ -22,8 +21,8 @@ dev = [
     "ruff",
     "pytest",
     "pytest-asyncio",
-    "httpx",
     "pytest-cov",
+    "aiosqlite",
 ]
 analysis = [
     "numpy",

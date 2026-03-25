@@ -1054,7 +1054,6 @@ name = "issuematch"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
-    { name = "aiosqlite" },
     { name = "alembic" },
     { name = "asyncpg" },
     { name = "fastapi" },
@@ -1076,7 +1075,7 @@ analysis = [
     { name = "numpy" },
 ]
 dev = [
-    { name = "httpx" },
+    { name = "aiosqlite" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
@@ -1085,12 +1084,11 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "aiosqlite" },
+    { name = "aiosqlite", marker = "extra == 'dev'" },
     { name = "alembic" },
     { name = "asyncpg" },
     { name = "fastapi" },
     { name = "httpx" },
-    { name = "httpx", marker = "extra == 'dev'" },
     { name = "ipykernel", marker = "extra == 'analysis'" },
     { name = "ipyparallel", marker = "extra == 'analysis'" },
     { name = "itsdangerous" },
