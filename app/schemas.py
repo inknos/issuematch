@@ -100,11 +100,13 @@ class FetchRequest(BaseModel):
     repo: str
     type: Literal["issues", "pulls"]
     labels: str | None = None
+    mode: Literal["merge", "replace", "subtract"] = "merge"
 
 
 class FetchResult(BaseModel):
     """Response after a fetch operation completes."""
 
     upserted: int
+    removed: int = 0
     org: str
     repo: str

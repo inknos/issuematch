@@ -342,7 +342,7 @@ async def test_fetch_with_mocked_github(
     with p1, p2, p3:
         await client.put("/api/admin", json={"token": "ghp_mock"})
 
-    mock_fetch = AsyncMock(return_value=5)
+    mock_fetch = AsyncMock(return_value=(5, 0))
     with p1, p2, p3, patch("app.routes.fetch_and_store", mock_fetch):
         resp = await client.post(
             "/api/admin/fetch",
@@ -351,6 +351,7 @@ async def test_fetch_with_mocked_github(
     assert resp.status_code == 200
     data = resp.json()
     assert data["upserted"] == 5
+    assert data["removed"] == 0
     assert data["org"] == "acme"
     assert data["repo"] == "widgets"
 
@@ -360,6 +361,7 @@ async def test_fetch_with_mocked_github(
     assert call_kwargs["repo"] == "widgets"
     assert call_kwargs["item_type"] == "issues"
     assert call_kwargs["labels"] == "bug"
+    assert call_kwargs["mode"] == "merge"
 
 
 async def test_fetch_anonymous(client: AsyncClient) -> None:
@@ -381,3 +383,86 @@ async def test_fetch_contributor_forbidden(
             json={"org": "acme", "repo": "widgets", "type": "issues"},
         )
     assert resp.status_code == 403
+
+
+async def test_fetch_mode_forwarded_replace(
+    client: AsyncClient,
+    admin_user: dict,
+) -> None:
+    p1, p2, p3 = _mock_role(_admin_session(admin_user))
+
+    with p1, p2, p3:
+        await client.put("/api/admin", json={"token": "ghp_mock"})
+
+    mock_fetch = AsyncMock(return_value=(3, 2))
+    with p1, p2, p3, patch("app.routes.fetch_and_store", mock_fetch):
+        resp = await client.post(
+            "/api/admin/fetch",
+            json={"org": "acme", "repo": "widgets", "type": "issues", "mode": "replace"},
+        )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["upserted"] == 3
+    assert data["removed"] == 2
+
+    call_kwargs = mock_fetch.call_args.kwargs
+    assert call_kwargs["mode"] == "replace"
+
+
+async def test_fetch_mode_forwarded_subtract(
+    client: AsyncClient,
+    admin_user: dict,
+) -> None:
+    p1, p2, p3 = _mock_role(_admin_session(admin_user))
+
+    with p1, p2, p3:
+        await client.put("/api/admin", json={"token": "ghp_mock"})
+
+    mock_fetch = AsyncMock(return_value=(0, 4))
+    with p1, p2, p3, patch("app.routes.fetch_and_store", mock_fetch):
+        resp = await client.post(
+            "/api/admin/fetch",
+            json={"org": "acme", "repo": "widgets", "type": "issues", "mode": "subtract"},
+        )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["upserted"] == 0
+    assert data["removed"] == 4
+
+    call_kwargs = mock_fetch.call_args.kwargs
+    assert call_kwargs["mode"] == "subtract"
+
+
+async def test_fetch_default_mode_is_merge(
+    client: AsyncClient,
+    admin_user: dict,
+) -> None:
+    """When mode is omitted from the request body, it defaults to merge."""
+    p1, p2, p3 = _mock_role(_admin_session(admin_user))
+
+    with p1, p2, p3:
+        await client.put("/api/admin", json={"token": "ghp_mock"})
+
+    mock_fetch = AsyncMock(return_value=(1, 0))
+    with p1, p2, p3, patch("app.routes.fetch_and_store", mock_fetch):
+        resp = await client.post(
+            "/api/admin/fetch",
+            json={"org": "acme", "repo": "widgets", "type": "issues"},
+        )
+    assert resp.status_code == 200
+
+    call_kwargs = mock_fetch.call_args.kwargs
+    assert call_kwargs["mode"] == "merge"
+
+
+async def test_fetch_invalid_mode_returns_422(
+    client: AsyncClient,
+    admin_user: dict,
+) -> None:
+    p1, p2, p3 = _mock_role(_admin_session(admin_user))
+    with p1, p2, p3:
+        resp = await client.post(
+            "/api/admin/fetch",
+            json={"org": "acme", "repo": "widgets", "type": "issues", "mode": "nuke"},
+        )
+    assert resp.status_code == 422

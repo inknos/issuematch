@@ -81,16 +81,19 @@
           spinner.classList.remove('d-none');
           el.textContent = '';
           var labels = document.getElementById('fetch-labels').value.trim() || null;
+          var mode = document.getElementById('fetch-mode').value;
           fetch('/api/admin/fetch', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({org: org, repo: repo, type: document.getElementById('fetch-type').value, labels: labels})
+            body: JSON.stringify({org: org, repo: repo, type: document.getElementById('fetch-type').value, labels: labels, mode: mode})
           }).then(function(resp) {
             btn.disabled = false;
             spinner.classList.add('d-none');
             if (resp.ok) {
               return resp.json().then(function(data) {
-                el.textContent = 'Upserted ' + data.upserted + ' items from ' + data.org + '/' + data.repo;
+                var msg = 'Upserted ' + data.upserted + ' items from ' + data.org + '/' + data.repo;
+                if (data.removed > 0) msg += ', removed ' + data.removed;
+                el.textContent = msg;
                 el.className = 'text-success small mt-2';
               });
             } else {
@@ -126,6 +129,15 @@
             </div>
             <div class="col-6">
               <input type="text" class="form-control" id="fetch-labels" placeholder="Labels (optional)">
+            </div>
+          </div>
+          <div class="row g-2 mb-2">
+            <div class="col-12">
+              <select class="form-select" id="fetch-mode">
+                <option value="merge" selected>Merge (add + update)</option>
+                <option value="replace">Replace (sync with GitHub)</option>
+                <option value="subtract">Subtract (remove matched)</option>
+              </select>
             </div>
           </div>
           <button type="submit" class="btn btn-primary" id="fetch-btn">

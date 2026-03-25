@@ -6,9 +6,9 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Literal
 
 import httpx
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
-from app.models import Issue
+from app.models import Issue, Vote
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -24,21 +24,19 @@ async def fetch_and_store(
     item_type: Literal["issues", "pulls"] = "issues",
     labels: str | None = None,
     state: str = "open",
+    mode: Literal["merge", "replace", "subtract"] = "merge",
     session_factory: async_sessionmaker,
-) -> int:
-    """Fetch issues or PRs from the GitHub API and upsert them into the database.
+) -> tuple[int, int]:
+    """Fetch issues or PRs from the GitHub API and store them according to *mode*.
 
-    Args:
-        token: GitHub API bearer token.
-        org: GitHub organisation or owner.
-        repo: Repository name.
-        item_type: Whether to fetch ``"issues"`` or ``"pulls"``.
-        labels: Comma-separated label filter (only for issues).
-        state: Issue/PR state filter (``"open"``, ``"closed"``, ``"all"``).
-        session_factory: An async session factory (``async_sessionmaker``).
+    Modes:
+        merge: Upsert fetched items (insert new, update existing, leave others).
+        replace: Delete issues in the same org/repo/type scope that were NOT
+            returned by the fetch, then upsert the fetched items.
+        subtract: Delete issues from the DB that *were* returned by the fetch.
 
     Returns:
-        The number of upserted rows.
+        ``(upserted, removed)`` counts.
     """
     headers = {
         "Accept": "application/vnd.github+json",
@@ -49,8 +47,8 @@ async def fetch_and_store(
         params["labels"] = labels
 
     type_label = "issue" if item_type == "issues" else "pull"
-    upserted = 0
 
+    all_items: list[dict] = []
     async with httpx.AsyncClient(headers=headers, timeout=30) as client:
         while True:
             url = f"{GITHUB_API}/repos/{org}/{repo}/{item_type}"
@@ -59,14 +57,79 @@ async def fetch_and_store(
             items = resp.json()
             if not items:
                 break
-
-            async with session_factory() as db:
-                upserted += await _upsert_page(db, items, org, repo, type_label)
-                await db.commit()
-
+            all_items.extend(items)
             params["page"] = int(params["page"]) + 1
 
-    return upserted
+    if type_label == "issue":
+        all_items = [i for i in all_items if "pull_request" not in i]
+
+    fetched_ids = {f"{org}/{repo}/{type_label}/{item['number']}" for item in all_items}
+
+    if mode == "subtract":
+        removed = await _remove_issues(session_factory, fetched_ids)
+        return 0, removed
+
+    upserted = 0
+    for i in range(0, len(all_items), 100):
+        page = all_items[i : i + 100]
+        async with session_factory() as db:
+            upserted += await _upsert_page(db, page, org, repo, type_label)
+            await db.commit()
+
+    removed = 0
+    if mode == "replace":
+        removed = await _remove_stale_issues(
+            session_factory,
+            org,
+            repo,
+            type_label,
+            fetched_ids,
+        )
+
+    return upserted, removed
+
+
+async def _remove_issues(
+    session_factory: async_sessionmaker,
+    issue_ids: set[str],
+) -> int:
+    """Delete issues (and their votes) whose IDs are in *issue_ids*."""
+    if not issue_ids:
+        return 0
+    async with session_factory() as db:
+        await db.execute(delete(Vote).where(Vote.issue_id.in_(issue_ids)))
+        result = await db.execute(delete(Issue).where(Issue.id.in_(issue_ids)))
+        await db.commit()
+        return result.rowcount  # type: ignore[return-value]
+
+
+async def _remove_stale_issues(
+    session_factory: async_sessionmaker,
+    org: str,
+    repo: str,
+    type_label: str,
+    keep_ids: set[str],
+) -> int:
+    """Delete issues in the org/repo/type scope whose IDs are NOT in *keep_ids*."""
+    async with session_factory() as db:
+        stale_q = select(Issue.id).where(
+            Issue.org == org,
+            Issue.repo == repo,
+            Issue.type == type_label,
+        )
+        if keep_ids:
+            stale_q = stale_q.where(Issue.id.notin_(keep_ids))
+
+        stale_result = await db.execute(stale_q)
+        stale_ids = set(stale_result.scalars().all())
+
+        if not stale_ids:
+            return 0
+
+        await db.execute(delete(Vote).where(Vote.issue_id.in_(stale_ids)))
+        result = await db.execute(delete(Issue).where(Issue.id.in_(stale_ids)))
+        await db.commit()
+        return result.rowcount  # type: ignore[return-value]
 
 
 async def _upsert_page(
@@ -79,9 +142,6 @@ async def _upsert_page(
     """Upsert a single page of GitHub API results. Returns rows touched."""
     count = 0
     for item in items:
-        if type_label == "issue" and "pull_request" in item:
-            continue
-
         issue_id = f"{org}/{repo}/{type_label}/{item['number']}"
         existing = await db.execute(select(Issue).where(Issue.id == issue_id))
 

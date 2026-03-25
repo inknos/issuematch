@@ -518,21 +518,29 @@ async def admin_fetch(
         raise HTTPException(status_code=400, detail="No GitHub token configured")
 
     token = decrypt_token(user.github_token_encrypted)
-    upserted = await fetch_and_store(
+    upserted, removed = await fetch_and_store(
         token=token,
         org=body.org,
         repo=body.repo,
         item_type=body.type,
         labels=body.labels,
+        mode=body.mode,
         session_factory=app_session_factory,
     )
     _log_action(
         session,
         admin_uid,
-        {"type": "fetch", "org": body.org, "repo": body.repo, "upserted": upserted},
+        {
+            "type": "fetch",
+            "org": body.org,
+            "repo": body.repo,
+            "mode": body.mode,
+            "upserted": upserted,
+            "removed": removed,
+        },
     )
     await session.commit()
-    return {"upserted": upserted, "org": body.org, "repo": body.repo}
+    return {"upserted": upserted, "removed": removed, "org": body.org, "repo": body.repo}
 
 
 # ---------------------------------------------------------------------------
