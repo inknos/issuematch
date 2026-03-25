@@ -1,8 +1,138 @@
 {% extends "base.html" %}
-{% block title %}Admin — Users{% endblock %}
+{% block title %}Admin{% endblock %}
 
 {% block content %}
-<h2 class="mb-4">User Management</h2>
+<h2 class="mb-4">Admin</h2>
+
+<div class="row g-4 mb-5">
+
+  <!-- Token Management Card -->
+  <div class="col-12 col-md-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <h5 class="card-title">GitHub API Token</h5>
+        <p class="card-text text-muted">
+          Set a personal access token for fetching issues from GitHub.
+          The token is encrypted at rest and can never be retrieved.
+        </p>
+
+        <div class="mb-3">
+          <span class="badge {{ 'bg-success' if has_token else 'bg-secondary' }}" id="token-status">
+            {{ "Token set" if has_token else "No token set" }}
+          </span>
+        </div>
+
+        <form id="token-form"
+              hx-put="/api/admin"
+              hx-headers='{"Content-Type": "application/json"}'
+              hx-swap="none"
+              hx-on::before-request="
+                var input = document.getElementById('token-input');
+                if (!input.value.trim()) { event.preventDefault(); return; }
+                event.detail.requestConfig.headers['Content-Type'] = 'application/json';
+              "
+              hx-vals="js:{token: document.getElementById('token-input').value}"
+              hx-on::after-request="
+                if (event.detail.successful) {
+                  document.getElementById('token-input').value = '';
+                  var badge = document.getElementById('token-status');
+                  badge.textContent = 'Token set';
+                  badge.className = 'badge bg-success';
+                  document.getElementById('token-msg').textContent = 'Token saved.';
+                  document.getElementById('token-msg').className = 'text-success small mt-2';
+                } else {
+                  document.getElementById('token-msg').textContent = 'Failed to save token.';
+                  document.getElementById('token-msg').className = 'text-danger small mt-2';
+                }
+              ">
+          <div class="input-group">
+            <input type="password" class="form-control" id="token-input"
+                   placeholder="ghp_..." autocomplete="off">
+            <button type="submit" class="btn btn-primary">Save Token</button>
+          </div>
+          <div id="token-msg" class="small mt-2"></div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Fetch Card -->
+  <div class="col-12 col-md-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <h5 class="card-title">Fetch from GitHub</h5>
+        <p class="card-text text-muted">
+          Pull issues or pull requests into the database for voting.
+        </p>
+
+        <form id="fetch-form"
+              hx-post="/api/admin/fetch"
+              hx-headers='{"Content-Type": "application/json"}'
+              hx-swap="none"
+              hx-on::before-request="
+                var org = document.getElementById('fetch-org').value.trim();
+                var repo = document.getElementById('fetch-repo').value.trim();
+                if (!org || !repo) { event.preventDefault(); return; }
+                document.getElementById('fetch-btn').disabled = true;
+                document.getElementById('fetch-spinner').classList.remove('d-none');
+                document.getElementById('fetch-result').textContent = '';
+              "
+              hx-vals="js:{
+                org: document.getElementById('fetch-org').value.trim(),
+                repo: document.getElementById('fetch-repo').value.trim(),
+                type: document.getElementById('fetch-type').value,
+                labels: document.getElementById('fetch-labels').value.trim() || null
+              }"
+              hx-on::after-request="
+                document.getElementById('fetch-btn').disabled = false;
+                document.getElementById('fetch-spinner').classList.add('d-none');
+                var el = document.getElementById('fetch-result');
+                if (event.detail.successful) {
+                  var data = JSON.parse(event.detail.xhr.responseText);
+                  el.textContent = 'Upserted ' + data.upserted + ' items from ' + data.org + '/' + data.repo;
+                  el.className = 'text-success small mt-2';
+                } else {
+                  try {
+                    var err = JSON.parse(event.detail.xhr.responseText);
+                    el.textContent = err.detail || 'Fetch failed.';
+                  } catch(e) {
+                    el.textContent = 'Fetch failed.';
+                  }
+                  el.className = 'text-danger small mt-2';
+                }
+              ">
+          <div class="row g-2 mb-2">
+            <div class="col-6">
+              <input type="text" class="form-control" id="fetch-org" placeholder="Org / Owner" required>
+            </div>
+            <div class="col-6">
+              <input type="text" class="form-control" id="fetch-repo" placeholder="Repository" required>
+            </div>
+          </div>
+          <div class="row g-2 mb-2">
+            <div class="col-6">
+              <select class="form-select" id="fetch-type">
+                <option value="issues" selected>Issues</option>
+                <option value="pulls">Pull Requests</option>
+              </select>
+            </div>
+            <div class="col-6">
+              <input type="text" class="form-control" id="fetch-labels" placeholder="Labels (optional)">
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary" id="fetch-btn">
+            <span class="spinner-border spinner-border-sm d-none" id="fetch-spinner" role="status"></span>
+            Fetch
+          </button>
+          <div id="fetch-result" class="small mt-2"></div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<h3 class="mb-3">User Management</h3>
 
 <div class="table-responsive">
   <table class="table table-striped align-middle">

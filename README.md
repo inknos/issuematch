@@ -14,12 +14,9 @@ Gamify your issue backlog review. Each team member votes on issues (-3 to +3) on
 uv sync            # or: pip install -e .
 
 # 2. Set up environment variables (see below)
-cp .env.example .env
+#    Create a .env file with the required variables
 
-# 3. Fetch issues from a GitHub repo
-uv run python fetch_issues.py --org myorg --repo myrepo
-
-# 4. Run the app
+# 3. Run the app
 uv run uvicorn app.main:app --reload --port 8000
 ```
 
@@ -39,47 +36,27 @@ Open http://localhost:8000 and sign in with GitHub.
 
 Put both values in your `.env` file as `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`.
 
-## Creating a GitHub personal access token (for fetching issues)
-
-The `fetch_issues.py` CLI script needs a token to read issues from the GitHub API.
-
-1. Go to **[GitHub Settings > Tokens](https://github.com/settings/tokens)**
-2. Click **Generate new token (classic)**
-3. Select the `repo` scope (or just `public_repo` for public repos)
-4. Copy the token and put it in your `.env` as `GITHUB_TOKEN`
-
 ## Environment variables
 
-Copy `.env.example` to `.env` and fill in the values:
+Create a `.env` file in the project root with the following variables:
 
 | Variable | Purpose | How to get it |
 |---|---|---|
 | `GITHUB_CLIENT_ID` | OAuth App client ID | GitHub OAuth App settings (see above) |
 | `GITHUB_CLIENT_SECRET` | OAuth App client secret | GitHub OAuth App settings (see above) |
-| `GITHUB_TOKEN` | Personal access token for fetching issues | GitHub token settings (see above) |
 | `SESSION_SECRET` | Secret for signing session cookies | Generate with: `python -c "import secrets; print(secrets.token_hex(32))"` |
-| `DATABASE_URL` | SQLite connection string | Default: `sqlite+aiosqlite:///./issuematch.db` |
+| `DATABASE_URL` | Database connection string | Default: `sqlite+aiosqlite:///./issuematch.db` |
 | `BASE_URL` | App base URL (must match GitHub OAuth App) | Default: `http://localhost:8000` |
 
 ## Usage
 
 ### Fetching issues
 
-```bash
-# Fetch all open issues
-uv run python fetch_issues.py --org myorg --repo myrepo
+Issue fetching is done from the **Admin panel** in the web UI. Admin users can:
 
-# Fetch only issues with specific labels
-uv run python fetch_issues.py --org myorg --repo myrepo --labels "bug,help wanted"
-
-# Fetch closed issues
-uv run python fetch_issues.py --org myorg --repo myrepo --state closed
-
-# Fetch all issues regardless of state
-uv run python fetch_issues.py --org myorg --repo myrepo --state all
-```
-
-Re-running the command updates existing issues and adds new ones.
+1. Navigate to the **Admin** page
+2. Set a **GitHub personal access token** (stored encrypted, never retrievable)
+3. Use the **Fetch** form to pull issues or pull requests from any GitHub repository by specifying the org, repo, type, and optional label filters
 
 ### Voting
 
@@ -97,10 +74,12 @@ Visit http://localhost:8000/results to see all issues ranked by average score.
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/users/{user_id}/votes/{issue_id}/json` | Get a single vote |
-| `PUT` | `/users/{user_id}/votes/{issue_id}` | Update a vote's ranking |
-| `POST` | `/users/{user_id}/votes/{issue_id}` | Create an empty vote (ranking = null) |
-| `GET` | `/votes/{issue_id}/json` | Get all votes for an issue |
-| `GET` | `/results/json` | Get aggregated results for all issues |
+| `GET` | `/api/admin` | Get admin status (token set, etc.) |
+| `PUT` | `/api/admin` | Set GitHub API token |
+| `POST` | `/api/admin/fetch` | Fetch issues/PRs from GitHub |
+| `GET` | `/api/admin/users` | List all users (admin only) |
+| `PATCH` | `/api/admin/users/{user_id}/role` | Change a user's role |
+| `GET` | `/api/votes` | List votes (filterable) |
+| `GET` | `/api/activity` | List activity log |
 
 Interactive API docs are available at http://localhost:8000/docs (Swagger UI).

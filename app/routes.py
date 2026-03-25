@@ -10,16 +10,23 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
 
 from app.auth import current_user_id, require_role
-from app.database import SessionDep  # noqa: TC001 — runtime-evaluated by FastAPI DI
+from app.crypto import decrypt_token, encrypt_token
+from app.database import SessionDep
+from app.database import async_session as app_session_factory
+from app.github import fetch_and_store
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import AuditLog, Issue, User, Vote
 from app.schemas import (
+    AdminTokenUpdate,
     AuditLogOut,
+    FetchRequest,
+    FetchResult,
     PaginatedAuditLog,
     PaginatedVotes,
     RoleUpdate,
+    TokenStatusOut,
     UserOut,
     VoteCreate,
     VoteOut,
@@ -469,6 +476,65 @@ async def update_user_role(
     return user
 
 
+@router.get("/api/admin", response_model=TokenStatusOut)
+async def admin_status(
+    request: Request,
+    session: SessionDep,
+) -> dict:
+    """Return whether the current admin has a GitHub API token set."""
+    admin_uid = require_role(request, "admin")
+    result = await session.execute(select(User).where(User.id == admin_uid))
+    user = result.scalar_one()
+    return {"has_token": user.github_token_encrypted is not None}
+
+
+@router.put("/api/admin", response_model=TokenStatusOut)
+async def update_admin_token(
+    body: AdminTokenUpdate,
+    request: Request,
+    session: SessionDep,
+) -> dict:
+    """Set or replace the admin's GitHub API token (encrypted at rest)."""
+    admin_uid = require_role(request, "admin")
+    result = await session.execute(select(User).where(User.id == admin_uid))
+    user = result.scalar_one()
+    user.github_token_encrypted = encrypt_token(body.token)
+    _log_action(session, admin_uid, {"type": "token_update"})
+    await session.commit()
+    return {"has_token": True}
+
+
+@router.post("/api/admin/fetch", response_model=FetchResult)
+async def admin_fetch(
+    body: FetchRequest,
+    request: Request,
+    session: SessionDep,
+) -> dict:
+    """Fetch issues or PRs from GitHub using the admin's stored token."""
+    admin_uid = require_role(request, "admin")
+    result = await session.execute(select(User).where(User.id == admin_uid))
+    user = result.scalar_one()
+    if user.github_token_encrypted is None:
+        raise HTTPException(status_code=400, detail="No GitHub token configured")
+
+    token = decrypt_token(user.github_token_encrypted)
+    upserted = await fetch_and_store(
+        token=token,
+        org=body.org,
+        repo=body.repo,
+        item_type=body.type,
+        labels=body.labels,
+        session_factory=app_session_factory,
+    )
+    _log_action(
+        session,
+        admin_uid,
+        {"type": "fetch", "org": body.org, "repo": body.repo, "upserted": upserted},
+    )
+    await session.commit()
+    return {"upserted": upserted, "org": body.org, "repo": body.repo}
+
+
 # ---------------------------------------------------------------------------
 # Admin HTML
 # ---------------------------------------------------------------------------
@@ -480,12 +546,18 @@ async def admin_users_page(
     session: SessionDep,
 ) -> HTMLResponse:
     """Render the admin user-management page (admin only)."""
-    require_role(request, "admin")
+    admin_uid = require_role(request, "admin")
     result = await session.execute(select(User).order_by(User.username))
     users = list(result.scalars().all())
+    admin_result = await session.execute(select(User).where(User.id == admin_uid))
+    admin = admin_result.scalar_one()
     return templates.TemplateResponse(
         "admin_users.html",
-        {"request": request, "users": users},
+        {
+            "request": request,
+            "users": users,
+            "has_token": admin.github_token_encrypted is not None,
+        },
     )
 
 

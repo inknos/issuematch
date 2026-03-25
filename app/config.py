@@ -12,7 +12,6 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 _REQUIRED_SECRETS = (
     "GITHUB_CLIENT_ID",
     "GITHUB_CLIENT_SECRET",
-    "GITHUB_TOKEN",
     "SESSION_SECRET",
     "BASE_URL",
 )
@@ -28,7 +27,6 @@ def validate_secrets() -> None:
 
 GITHUB_CLIENT_ID: str = os.environ.get("GITHUB_CLIENT_ID", "")
 GITHUB_CLIENT_SECRET: str = os.environ.get("GITHUB_CLIENT_SECRET", "")
-GITHUB_TOKEN: str = os.environ.get("GITHUB_TOKEN", "")
 SESSION_SECRET: str = os.environ.get("SESSION_SECRET", "")
 DATABASE_URL: str = os.environ.get("DATABASE_URL", "")
 BASE_URL: str = os.environ.get("BASE_URL", "")

@@ -8,7 +8,6 @@ def test_validate_secrets_raises_when_missing(monkeypatch: pytest.MonkeyPatch) -
     for name in (
         "GITHUB_CLIENT_ID",
         "GITHUB_CLIENT_SECRET",
-        "GITHUB_TOKEN",
         "SESSION_SECRET",
         "BASE_URL",
     ):
@@ -21,7 +20,6 @@ def test_validate_secrets_raises_when_missing(monkeypatch: pytest.MonkeyPatch) -
 def test_validate_secrets_passes_when_all_present(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("GITHUB_CLIENT_ID", "id")
     monkeypatch.setenv("GITHUB_CLIENT_SECRET", "secret")
-    monkeypatch.setenv("GITHUB_TOKEN", "ghp_tok")
     monkeypatch.setenv("SESSION_SECRET", "sess")
     monkeypatch.setenv("BASE_URL", "http://localhost")
 
@@ -32,7 +30,6 @@ def test_validate_secrets_reports_all_missing(monkeypatch: pytest.MonkeyPatch) -
     for name in (
         "GITHUB_CLIENT_ID",
         "GITHUB_CLIENT_SECRET",
-        "GITHUB_TOKEN",
         "SESSION_SECRET",
         "BASE_URL",
     ):

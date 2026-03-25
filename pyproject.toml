@@ -17,6 +17,7 @@ dependencies = [
     "python-multipart",
     "python-dotenv",
     "itsdangerous",
+    "cryptography",
 ]
 
 [project.optional-dependencies]
@@ -45,6 +46,7 @@ include = ["app*"]
 [tool.ruff]
 line-length = 100
 src = ["app"]
+exclude = ["alembic/versions"]
 
 # This is the section where Black is mostly replaced with Ruff
 [tool.ruff.format]
@@ -57,6 +59,7 @@ exclude = [
     "dist",
     "docs",
     "hack",
+    "alembic/versions",
 ]
 quote-style = "preserve"
 
@@ -118,11 +121,11 @@ select = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"fetch_issues.py" = ["T20"]  # CLI script, print is intentional
-"tests/**" = ["S101", "INP001", "PLR2004", "D100", "D103"]
+"tests/**" = ["S101", "S105", "INP001", "PLR2004", "D100", "D103"]
 "alembic/**" = ["INP001", "D"]
 "analysis/**" = ["PLR2004", "PLR0913", "D"]
 "app/routes.py" = ["PLR0913"]  # FastAPI DI injects many params
+"app/github.py" = ["PLR0913"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"

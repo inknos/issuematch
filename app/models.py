@@ -71,6 +71,7 @@ class User(Base):
     username: Mapped[str] = mapped_column(String, nullable=False)
     avatar_url: Mapped[str | None] = mapped_column(String, nullable=True)
     access_token: Mapped[str | None] = mapped_column(String, nullable=True)
+    github_token_encrypted: Mapped[str | None] = mapped_column(String, nullable=True)
     role: Mapped[str] = mapped_column(String, nullable=False, default=Role.contributor.value)
 
     votes: Mapped[list[Vote]] = relationship(back_populates="user")

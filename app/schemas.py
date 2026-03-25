@@ -79,3 +79,32 @@ class RoleUpdate(BaseModel):
     """Payload for changing a user's role."""
 
     role: Literal["admin", "maintainer", "contributor"]
+
+
+class AdminTokenUpdate(BaseModel):
+    """Payload for setting or replacing the admin's GitHub API token."""
+
+    token: str
+
+
+class TokenStatusOut(BaseModel):
+    """Response indicating whether the admin has a GitHub API token set."""
+
+    has_token: bool
+
+
+class FetchRequest(BaseModel):
+    """Payload for fetching issues or PRs from a GitHub repository."""
+
+    org: str
+    repo: str
+    type: Literal["issues", "pulls"]
+    labels: str | None = None
+
+
+class FetchResult(BaseModel):
+    """Response after a fetch operation completes."""
+
+    upserted: int
+    org: str
+    repo: str
