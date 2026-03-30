@@ -12,4 +12,5 @@ RUN uv sync --frozen --no-dev
 
 EXPOSE 9473
 
-CMD ["sh", "-c", "uv run alembic upgrade head && uv run uvicorn app.main:app --host 0.0.0.0 --port 9473"]
+ENV PATH="/opt/issuematch/.venv/bin:$PATH"
+CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 9473"]
