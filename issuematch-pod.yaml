@@ -1,0 +1,67 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: issuematch-postgres-pgdata
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: issuematch
+spec:
+  containers:
+    - name: postgres
+      image: docker.io/library/postgres:18-alpine
+      env:
+        - name: POSTGRES_DB
+          value: issuematch
+        - name: POSTGRES_USER
+          value: issuematch
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: issuematch-secrets
+              key: postgres_password
+      volumeMounts:
+        - name: pgdata
+          mountPath: /var/lib/postgresql/data
+    - name: issuematch
+      image: ghcr.io/inknos/issuematch
+      ports:
+        - containerPort: 9473
+          hostPort: 9473
+      env:
+        - name: GITHUB_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: issuematch-secrets
+              key: github_client_id
+        - name: GITHUB_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: issuematch-secrets
+              key: github_client_secret
+        - name: SESSION_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: issuematch-secrets
+              key: session_secret
+        - name: BASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: issuematch-secrets
+              key: base_url
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: issuematch-secrets
+              key: database_url
+  volumes:
+    - name: pgdata
+      persistentVolumeClaim:
+        claimName: issuematch-postgres-pgdata

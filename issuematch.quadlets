@@ -10,11 +10,6 @@ PodName=issuematch
 Network=issuematch-net.network
 PublishPort=9473:9473
 ---
-# FileName=issuematch
-[Build]
-ImageTag=localhost/issuematch
-SetWorkingDirectory=/home/nsella/Documents/personal_projects/issuematch
----
 # FileName=issuematch-postgres
 [Container]
 Image=docker.io/library/postgres:18-alpine
@@ -27,7 +22,7 @@ Secret=postgres_password,type=env,target=POSTGRES_PASSWORD
 ---
 # FileName=issuematch
 [Container]
-Image=issuematch.build
+Image=ghcr.io/inknos/issuematch
 ContainerName=issuematch
 Pod=issuematch.pod
 Secret=github_client_id,type=env,target=GITHUB_CLIENT_ID
