@@ -28,5 +28,12 @@ def validate_secrets() -> None:
 GITHUB_CLIENT_ID: str = os.environ.get("GITHUB_CLIENT_ID", "")
 GITHUB_CLIENT_SECRET: str = os.environ.get("GITHUB_CLIENT_SECRET", "")
 SESSION_SECRET: str = os.environ.get("SESSION_SECRET", "")
-DATABASE_URL: str = os.environ.get("DATABASE_URL", "")
 BASE_URL: str = os.environ.get("BASE_URL", "")
+
+DB_HOST: str = os.environ.get("DB_HOST", "localhost")
+DB_PORT: str = os.environ.get("DB_PORT", "5432")
+DB_USER: str = os.environ.get("DB_USER", "issuematch")
+DB_PASSWORD: str = os.environ.get("DB_PASSWORD", "")
+DB_NAME: str = os.environ.get("DB_NAME", "issuematch")
+
+DATABASE_URL: str = f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"

@@ -1,5 +1,6 @@
 .env
 kube/issuematch-secrets.yaml
+oc/issuematch-secrets.yaml
 
 __pycache__/
 *.py[cod]

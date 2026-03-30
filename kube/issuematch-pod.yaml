@@ -18,14 +18,7 @@ metadata:
 spec:
   containers:
     - name: postgres
-      image: docker.io/library/postgres:18-alpine
-      securityContext:
-        allowPrivilegeEscalation: false
-        capabilities:
-          drop: ["ALL"]
-          add: ["CHOWN", "FOWNER", "SETGID", "SETUID", "DAC_READ_SEARCH"]
-        seccompProfile:
-          type: RuntimeDefault
+      image: docker.io/library/postgres:18
       env:
         - name: POSTGRES_DB
           value: issuematch
@@ -38,7 +31,7 @@ spec:
               key: postgres_password
       volumeMounts:
         - name: pgdata
-          mountPath: /var/lib/postgresql/data
+          mountPath: /var/lib/postgresql
     - name: issuematch
       image: ghcr.io/inknos/issuematch
       securityContext:
@@ -70,11 +63,19 @@ spec:
             secretKeyRef:
               name: issuematch-secrets
               key: base_url
-        - name: DATABASE_URL
+        - name: DB_HOST
+          value: localhost
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_USER
+          value: issuematch
+        - name: DB_PASSWORD
           valueFrom:
             secretKeyRef:
               name: issuematch-secrets
-              key: database_url
+              key: postgres_password
+        - name: DB_NAME
+          value: issuematch
   volumes:
     - name: pgdata
       persistentVolumeClaim:

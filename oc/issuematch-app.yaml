@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: issuematch
+  labels:
+    app: issuematch
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: issuematch
+  template:
+    metadata:
+      labels:
+        app: issuematch
+    spec:
+      containers:
+        - name: issuematch
+          image: ghcr.io/inknos/issuematch
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          ports:
+            - containerPort: 9473
+          env:
+            - name: GITHUB_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: issuematch-secrets
+                  key: github_client_id
+            - name: GITHUB_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: issuematch-secrets
+                  key: github_client_secret
+            - name: SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: issuematch-secrets
+                  key: session_secret
+            - name: BASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: issuematch-secrets
+                  key: base_url
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: inknos-issuematch-postgres-18-pguser-issuematch
+                  key: host
+            - name: DB_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: inknos-issuematch-postgres-18-pguser-issuematch
+                  key: port
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: inknos-issuematch-postgres-18-pguser-issuematch
+                  key: user
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: inknos-issuematch-postgres-18-pguser-issuematch
+                  key: password
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: inknos-issuematch-postgres-18-pguser-issuematch
+                  key: dbname
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: issuematch
+spec:
+  selector:
+    app: issuematch
+  ports:
+    - port: 9473
+      targetPort: 9473

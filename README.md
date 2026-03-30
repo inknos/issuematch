@@ -45,8 +45,12 @@ Create a `.env` file in the project root with the following variables:
 | `GITHUB_CLIENT_ID` | OAuth App client ID | GitHub OAuth App settings (see above) |
 | `GITHUB_CLIENT_SECRET` | OAuth App client secret | GitHub OAuth App settings (see above) |
 | `SESSION_SECRET` | Secret for signing session cookies | Generate with: `python -c "import secrets; print(secrets.token_hex(32))"` |
-| `DATABASE_URL` | Database connection string | Default: `sqlite+aiosqlite:///./issuematch.db` |
 | `BASE_URL` | App base URL (must match GitHub OAuth App) | Default: `http://localhost:8000` |
+| `DB_HOST` | PostgreSQL host | Default: `localhost` |
+| `DB_PORT` | PostgreSQL port | Default: `5432` |
+| `DB_USER` | PostgreSQL user | Default: `issuematch` |
+| `DB_PASSWORD` | PostgreSQL password | Required |
+| `DB_NAME` | PostgreSQL database name | Default: `issuematch` |
 
 ## Usage
 
