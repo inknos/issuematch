@@ -1,0 +1,11 @@
+[Unit]
+Description=IssueMatch pod (app + postgres)
+
+[Kube]
+Yaml=issuematch-secrets.yaml
+Yaml=issuematch-pod.yaml
+SetWorkingDirectory=unit
+PublishPort=9473:9473
+
+[Install]
+WantedBy=default.target

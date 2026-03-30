@@ -13,10 +13,19 @@ apiVersion: v1
 kind: Pod
 metadata:
   name: issuematch
+  labels:
+    app: issuematch
 spec:
   containers:
     - name: postgres
       image: docker.io/library/postgres:18-alpine
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
+          add: ["CHOWN", "FOWNER", "SETGID", "SETUID", "DAC_READ_SEARCH"]
+        seccompProfile:
+          type: RuntimeDefault
       env:
         - name: POSTGRES_DB
           value: issuematch
@@ -32,9 +41,14 @@ spec:
           mountPath: /var/lib/postgresql/data
     - name: issuematch
       image: ghcr.io/inknos/issuematch
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
+        seccompProfile:
+          type: RuntimeDefault
       ports:
         - containerPort: 9473
-          hostPort: 9473
       env:
         - name: GITHUB_CLIENT_ID
           valueFrom:
@@ -65,3 +79,14 @@ spec:
     - name: pgdata
       persistentVolumeClaim:
         claimName: issuematch-postgres-pgdata
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: issuematch
+spec:
+  selector:
+    app: issuematch
+  ports:
+    - port: 9473
+      targetPort: 9473
