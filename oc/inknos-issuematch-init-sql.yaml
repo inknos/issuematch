@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: inknos-issuematch-init-sql
+data:
+  init.sql: |
+    \c issuematch
+    GRANT ALL ON SCHEMA public TO "issuematch";
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: inknos-issuematch-dev-init-sql
+data:
+  init.sql: |
+    \c issuematch
+    GRANT ALL ON SCHEMA public TO "issuematch";

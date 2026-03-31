@@ -1,0 +1,102 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inknos-issuematch-dev
+  labels:
+    app: inknos-issuematch-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: inknos-issuematch-dev
+  template:
+    metadata:
+      labels:
+        app: inknos-issuematch-dev
+    spec:
+      containers:
+        - name: inknos-issuematch-dev
+          image: ghcr.io/inknos/issuematch:latest
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          ports:
+            - containerPort: 9473
+          env:
+            - name: SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: inknos-issuematch-dev-secrets
+                  key: session_secret
+            - name: ADMIN_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: inknos-issuematch-dev-secrets
+                  key: admin_username
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: inknos-issuematch-dev-secrets
+                  key: admin_password
+            - name: HTTPS_PROXY
+              value: http://proxy.squi-001.prod.iad2.dc.redhat.com:3128
+            - name: HTTP_PROXY
+              value: http://proxy.squi-001.prod.iad2.dc.redhat.com:3128
+            - name: NO_PROXY
+              value: .svc,.cluster.local,localhost,127.0.0.1
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: inknos-issuematch-dev-postgres-18-pguser-issuematch
+                  key: host
+            - name: DB_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: inknos-issuematch-dev-postgres-18-pguser-issuematch
+                  key: port
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: inknos-issuematch-dev-postgres-18-pguser-issuematch
+                  key: user
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: inknos-issuematch-dev-postgres-18-pguser-issuematch
+                  key: password
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: inknos-issuematch-dev-postgres-18-pguser-issuematch
+                  key: dbname
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: inknos-issuematch-dev
+spec:
+  selector:
+    app: inknos-issuematch-dev
+  ports:
+    - port: 9473
+      targetPort: 9473
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: inknos-issuematch-dev-route-1
+  labels:
+    shard: internal
+spec:
+  host: inknos-issuematch-dev-route-1-ct-dev--runtime-int.apps.int.preprod-stable-spoke1-dc-iad2.itup.redhat.com
+  to:
+    kind: Service
+    name: inknos-issuematch-dev
+  port:
+    targetPort: 9473
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
