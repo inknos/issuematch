@@ -203,7 +203,7 @@ async def test_admin_page_unauthorized_anonymous(client: AsyncClient) -> None:
 
 
 async def test_new_user_defaults_to_contributor(session: AsyncSession) -> None:
-    user = User(github_id=11111, username="newbie", avatar_url=None, access_token=None)
+    user = User(username="newbie", avatar_url=None)
     session.add(user)
     await session.commit()
     await session.refresh(user)
@@ -466,3 +466,68 @@ async def test_fetch_invalid_mode_returns_422(
             json={"org": "acme", "repo": "widgets", "type": "issues", "mode": "nuke"},
         )
     assert resp.status_code == 422
+
+
+# -- POST /api/admin/users (create user) -----------------------------------
+
+
+async def test_create_user_as_admin(
+    client: AsyncClient,
+    admin_user: dict,
+    session: AsyncSession,
+) -> None:
+    p1, p2, p3 = _mock_role(_admin_session(admin_user))
+    with p1, p2, p3:
+        resp = await client.post(
+            "/api/admin/users",
+            json={"username": "newuser", "role": "maintainer", "password": "strong-pw-123"},
+        )
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["username"] == "newuser"
+    assert data["role"] == "maintainer"
+
+    from sqlalchemy import select  # noqa: PLC0415
+
+    row = (await session.execute(select(User).where(User.username == "newuser"))).scalar_one()
+    assert row.password_hash is not None
+
+
+@pytest.mark.usefixtures("seed_data")
+async def test_create_user_duplicate_username(
+    client: AsyncClient,
+    admin_user: dict,
+) -> None:
+    p1, p2, p3 = _mock_role(_admin_session(admin_user))
+    with p1, p2, p3:
+        resp = await client.post(
+            "/api/admin/users",
+            json={"username": "testuser", "password": "strong-pw-123"},
+        )
+    assert resp.status_code == 409
+
+
+async def test_create_user_short_password(
+    client: AsyncClient,
+    admin_user: dict,
+) -> None:
+    p1, p2, p3 = _mock_role(_admin_session(admin_user))
+    with p1, p2, p3:
+        resp = await client.post(
+            "/api/admin/users",
+            json={"username": "shortpw", "password": "abc"},
+        )
+    assert resp.status_code == 400
+
+
+async def test_create_user_contributor_forbidden(
+    client: AsyncClient,
+    seed_data: dict,
+) -> None:
+    p1, p2, p3 = _mock_role(_contributor_session(seed_data))
+    with p1, p2, p3:
+        resp = await client.post(
+            "/api/admin/users",
+            json={"username": "nope", "password": "strong-pw-123"},
+        )
+    assert resp.status_code == 403

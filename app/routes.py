@@ -9,24 +9,37 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import delete, func, select
 
-from app.auth import current_user_id, require_role
-from app.crypto import decrypt_token, encrypt_token
+from app.auth import ROLE_HIERARCHY, current_user_id, current_user_role, require_role
+from app.crypto import (
+    DUMMY_HASH,
+    decrypt_token,
+    encrypt_token,
+    generate_api_token,
+    hash_password,
+    verify_password,
+)
 from app.database import SessionDep
 from app.database import async_session as app_session_factory
 from app.github import fetch_and_store
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
-from app.models import AuditLog, Issue, User, Vote
+from app.models import ApiToken, AuditLog, Issue, User, Vote
 from app.schemas import (
+    AdminPasswordReset,
     AdminTokenUpdate,
+    ApiTokenCreate,
+    ApiTokenCreated,
+    ApiTokenOut,
     AuditLogOut,
     FetchRequest,
     FetchResult,
     PaginatedAuditLog,
     PaginatedVotes,
+    PasswordUpdate,
     RoleUpdate,
     TokenStatusOut,
+    UserCreate,
     UserOut,
     VoteCreate,
     VoteOut,
@@ -67,6 +80,10 @@ ACTION_LABELS: dict[str, tuple[str, str]] = {
     "role_change": ("Role Changed", "bg-warning text-dark"),
     "token_update": ("Token Updated", "bg-dark"),
     "fetch": ("Fetched", "bg-dark"),
+    "password_change": ("Password Changed", "bg-warning text-dark"),
+    "password_reset": ("Password Reset", "bg-warning text-dark"),
+    "api_token_create": ("API Token Created", "bg-success"),
+    "api_token_revoke": ("API Token Revoked", "bg-danger"),
 }
 
 
@@ -499,6 +516,42 @@ async def list_users(
     return list(result.scalars().all())
 
 
+@router.post("/api/admin/users", response_model=UserOut, status_code=201)
+async def create_user(
+    body: UserCreate,
+    request: Request,
+    session: SessionDep,
+) -> User:
+    """Create a new user with a role and password (admin only)."""
+    admin_uid = require_role(request, "admin")
+
+    username = body.username.strip()
+    if not username:
+        raise HTTPException(status_code=400, detail="Username must not be empty")
+    min_password_length = 8
+    if len(body.password) < min_password_length:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+
+    existing = await session.execute(select(User).where(User.username == username))
+    if existing.scalar_one_or_none() is not None:
+        raise HTTPException(status_code=409, detail="Username already exists")
+
+    user = User(
+        username=username,
+        password_hash=hash_password(body.password),
+        role=body.role,
+    )
+    session.add(user)
+    _log_action(
+        session,
+        admin_uid,
+        {"type": "user_created", "username": username, "role": body.role},
+    )
+    await session.commit()
+    await session.refresh(user)
+    return user
+
+
 @router.patch("/api/admin/users/{user_id}/role", response_model=UserOut)
 async def update_user_role(
     user_id: int,
@@ -555,6 +608,29 @@ async def update_admin_token(
     _log_action(session, admin_uid, {"type": "token_update"})
     await session.commit()
     return {"has_token": True}
+
+
+@router.put("/api/admin/users/{user_id}/password")
+async def admin_reset_password(
+    user_id: int,
+    body: AdminPasswordReset,
+    request: Request,
+    session: SessionDep,
+) -> dict:
+    """Set or reset a user's password (admin only)."""
+    admin_uid = require_role(request, "admin")
+    result = await session.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    user.password_hash = hash_password(body.new_password)
+    _log_action(
+        session,
+        admin_uid,
+        {"type": "password_reset", "target_user_id": user_id},
+    )
+    await session.commit()
+    return {"ok": True}
 
 
 @router.post("/api/admin/fetch", response_model=FetchResult)
@@ -620,6 +696,142 @@ async def admin_users_page(
             "has_token": admin.github_token_encrypted is not None,
         },
     )
+
+
+# ---------------------------------------------------------------------------
+# User page (password + tokens, all authenticated users)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/user", response_class=HTMLResponse)
+async def user_page(
+    request: Request,
+    session: SessionDep,
+) -> HTMLResponse:
+    """Render the user account page (password change + API tokens)."""
+    uid = _require_login(request)
+    result = await session.execute(select(User).where(User.id == uid))
+    user = result.scalar_one()
+    token_result = await session.execute(
+        select(ApiToken).where(ApiToken.user_id == uid).order_by(ApiToken.created_at.desc()),
+    )
+    tokens = list(token_result.scalars().all())
+    user_role = current_user_role(request) or "contributor"
+    role_level = ROLE_HIERARCHY.get(user_role, 1)
+    allowed_roles = [r for r, lvl in ROLE_HIERARCHY.items() if lvl <= role_level]
+    return templates.TemplateResponse(
+        "user.html",
+        {
+            "request": request,
+            "user": user,
+            "tokens": tokens,
+            "allowed_roles": allowed_roles,
+            "has_password": user.password_hash is not None,
+        },
+    )
+
+
+@router.put("/api/user/password")
+async def change_own_password(
+    body: PasswordUpdate,
+    request: Request,
+    session: SessionDep,
+) -> dict:
+    """Change the current user's password (requires current password)."""
+    uid = _require_login(request)
+    result = await session.execute(select(User).where(User.id == uid))
+    user = result.scalar_one()
+
+    if user.password_hash is None:
+        verify_password(body.current_password, DUMMY_HASH)
+        raise HTTPException(status_code=400, detail="No password set — ask an admin to set one")
+
+    if not verify_password(body.current_password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Current password is incorrect")
+
+    user.password_hash = hash_password(body.new_password)
+    _log_action(session, uid, {"type": "password_change"})
+    await session.commit()
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# API token CRUD (all authenticated users)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/api/tokens", response_model=list[ApiTokenOut])
+async def list_tokens(
+    request: Request,
+    session: SessionDep,
+) -> list[ApiToken]:
+    """List the current user's API tokens."""
+    uid = _require_login(request)
+    result = await session.execute(
+        select(ApiToken).where(ApiToken.user_id == uid).order_by(ApiToken.created_at.desc()),
+    )
+    return list(result.scalars().all())
+
+
+@router.post("/api/tokens", response_model=ApiTokenCreated, status_code=201)
+async def create_token(
+    body: ApiTokenCreate,
+    request: Request,
+    session: SessionDep,
+) -> dict:
+    """Create a new API token. The raw token is returned only once."""
+    uid = _require_login(request)
+    user_role = current_user_role(request) or "contributor"
+    user_level = ROLE_HIERARCHY.get(user_role, 1)
+    requested_level = ROLE_HIERARCHY.get(body.role, 0)
+    if requested_level > user_level:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Cannot create token with role '{body.role}' — exceeds your level",
+        )
+
+    raw, token_hash, prefix = generate_api_token()
+    api_token = ApiToken(
+        user_id=uid,
+        token_hash=token_hash,
+        token_prefix=prefix,
+        name=body.name,
+        role=body.role,
+    )
+    session.add(api_token)
+    _log_action(session, uid, {"type": "api_token_create", "name": body.name, "role": body.role})
+    await session.commit()
+    await session.refresh(api_token)
+    return {
+        "id": api_token.id,
+        "name": api_token.name,
+        "token_prefix": api_token.token_prefix,
+        "role": api_token.role,
+        "created_at": api_token.created_at,
+        "last_used_at": api_token.last_used_at,
+        "is_active": api_token.is_active,
+        "raw_token": raw,
+    }
+
+
+@router.delete("/api/tokens/{token_id}", status_code=204)
+async def revoke_token(
+    token_id: int,
+    request: Request,
+    session: SessionDep,
+) -> Response:
+    """Revoke (soft-delete) an API token. Only the owner can revoke."""
+    uid = _require_login(request)
+    result = await session.execute(
+        select(ApiToken).where(ApiToken.id == token_id, ApiToken.user_id == uid),
+    )
+    api_token = result.scalar_one_or_none()
+    if api_token is None:
+        raise HTTPException(status_code=404, detail="Token not found")
+    api_token.is_active = False
+    _log_action(session, uid, {"type": "api_token_revoke", "token_id": token_id})
+    await session.commit()
+    return Response(status_code=204)
 
 
 # ---------------------------------------------------------------------------

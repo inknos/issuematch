@@ -29,6 +29,9 @@
       <div class="d-flex align-items-center gap-3">
         <a class="nav-link" href="/votes">Votes</a>
         <a class="nav-link" href="/activity">Activity</a>
+        {% if request.session.get("username") %}
+          <a class="nav-link" href="/user">Account</a>
+        {% endif %}
         {% if request.session.get("role") == "admin" %}
           <a class="nav-link" href="/admin/users">Admin</a>
         {% endif %}

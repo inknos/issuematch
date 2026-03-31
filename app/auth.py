@@ -1,104 +1,40 @@
-"""GitHub OAuth login/callback/logout routes and session helpers."""
+"""Password login/logout routes and session helpers."""
 
 from __future__ import annotations
 
-from urllib.parse import urlencode
-
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import RedirectResponse
-from httpx import AsyncClient
-from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from sqlalchemy import select
 
-from app.config import BASE_URL, GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, SESSION_SECRET
+from app.config import SESSION_SECRET  # noqa: F401 — re-exported for tests
+from app.crypto import DUMMY_HASH, verify_password
 from app.database import SessionDep  # noqa: TC001 — runtime-evaluated by FastAPI DI
 from app.models import AuditLog, Role, User
 
 router = APIRouter()
 
-GITHUB_AUTHORIZE_URL = "https://github.com/login/oauth/authorize"
-GITHUB_OAUTH_URL = "https://github.com/login/oauth/access_token"
-GITHUB_USER_URL = "https://api.github.com/user"
 
-REDIRECT_URI = f"{BASE_URL}/auth/callback"
-
-_signer = URLSafeTimedSerializer(SESSION_SECRET)
-STATE_MAX_AGE = 300  # 5 minutes
-
-
-@router.get("/login")
-async def login() -> RedirectResponse:
-    """Redirect the user to GitHub's OAuth authorize page."""
-    state = _signer.dumps({"v": 1})
-
-    params = urlencode(
-        {
-            "client_id": GITHUB_CLIENT_ID,
-            "redirect_uri": REDIRECT_URI,
-            "scope": "read:user",
-            "state": state,
-        },
-    )
-    return RedirectResponse(f"{GITHUB_AUTHORIZE_URL}?{params}")
-
-
-@router.get("/auth/callback")
-async def auth_callback(
+@router.post("/auth/login")
+async def password_login(
     request: Request,
-    code: str,
-    state: str,
     session: SessionDep,
 ) -> RedirectResponse:
-    """Exchange the OAuth code for a token and create or update the user."""
-    try:
-        _signer.loads(state, max_age=STATE_MAX_AGE)
-    except SignatureExpired:
-        raise HTTPException(
-            status_code=403,
-            detail="OAuth state expired — please try logging in again",
-        ) from None
-    except BadSignature:
-        raise HTTPException(status_code=403, detail="Invalid OAuth state — possible CSRF") from None
+    """Authenticate with username + password and create a session."""
+    form = await request.form()
+    username = str(form.get("username", ""))
+    password = str(form.get("password", ""))
 
-    async with AsyncClient() as client:
-        token_resp = await client.post(
-            GITHUB_OAUTH_URL,
-            data={
-                "client_id": GITHUB_CLIENT_ID,
-                "client_secret": GITHUB_CLIENT_SECRET,
-                "code": code,
-                "redirect_uri": REDIRECT_URI,
-            },
-            headers={"Accept": "application/json"},
-        )
-        token_resp.raise_for_status()
-        access_token = token_resp.json()["access_token"]
-
-        user_resp = await client.get(
-            GITHUB_USER_URL,
-            headers={"Authorization": f"Bearer {access_token}"},
-        )
-        user_resp.raise_for_status()
-        gh_user = user_resp.json()
-
-    result = await session.execute(select(User).where(User.github_id == gh_user["id"]))
+    result = await session.execute(select(User).where(User.username == username))
     user = result.scalar_one_or_none()
 
-    if user is None:
-        user = User(
-            github_id=gh_user["id"],
-            username=gh_user["login"],
-            avatar_url=gh_user.get("avatar_url"),
-            access_token=access_token,
-        )
-        session.add(user)
-        await session.flush()
-    else:
-        user.username = gh_user["login"]
-        user.avatar_url = gh_user.get("avatar_url")
-        user.access_token = access_token
+    if user is None or user.password_hash is None:
+        verify_password(password, DUMMY_HASH)
+        raise HTTPException(status_code=401, detail="Invalid username or password")
 
-    session.add(AuditLog(user_id=user.id, action={"type": "login"}))
+    if not verify_password(password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+
+    session.add(AuditLog(user_id=user.id, action={"type": "login", "method": "password"}))
     await session.commit()
     await session.refresh(user)
 
@@ -122,7 +58,10 @@ async def logout(request: Request, session: SessionDep) -> RedirectResponse:
 
 
 def current_user_id(request: Request) -> int | None:
-    """Return the logged-in user_id from the session, or None."""
+    """Return the authenticated user_id (Bearer token first, then session)."""
+    bearer_uid = getattr(request.state, "_bearer_user_id", None)
+    if bearer_uid is not None:
+        return bearer_uid
     return request.session.get("user_id")
 
 
@@ -134,7 +73,10 @@ ROLE_HIERARCHY: dict[str, int] = {
 
 
 def current_user_role(request: Request) -> str | None:
-    """Return the logged-in user's role from the session, or None."""
+    """Return the authenticated user's role (Bearer token first, then session)."""
+    bearer_role = getattr(request.state, "_bearer_role", None)
+    if bearer_role is not None:
+        return bearer_role
     return request.session.get("role")
 
 

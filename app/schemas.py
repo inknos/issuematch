@@ -67,7 +67,6 @@ class UserOut(BaseModel):
     """Read-only representation of a user."""
 
     id: int
-    github_id: int
     username: str
     avatar_url: str | None
     role: str
@@ -79,6 +78,14 @@ class RoleUpdate(BaseModel):
     """Payload for changing a user's role."""
 
     role: Literal["admin", "maintainer", "contributor"]
+
+
+class UserCreate(BaseModel):
+    """Payload for an admin creating a new user."""
+
+    username: str
+    role: Literal["admin", "maintainer", "contributor"] = "contributor"
+    password: str
 
 
 class AdminTokenUpdate(BaseModel):
@@ -110,3 +117,48 @@ class FetchResult(BaseModel):
     removed: int = 0
     org: str
     repo: str
+
+
+# ---------------------------------------------------------------------------
+# Password & API-token schemas
+# ---------------------------------------------------------------------------
+
+
+class PasswordUpdate(BaseModel):
+    """Payload for a user changing their own password."""
+
+    current_password: str
+    new_password: str
+
+
+class AdminPasswordReset(BaseModel):
+    """Payload for an admin resetting any user's password."""
+
+    new_password: str
+
+
+class ApiTokenCreate(BaseModel):
+    """Payload for creating a new API token."""
+
+    name: str
+    role: Literal["admin", "maintainer", "contributor"]
+
+
+class ApiTokenOut(BaseModel):
+    """Read-only representation of an API token (no secret)."""
+
+    id: int
+    name: str
+    token_prefix: str
+    role: str
+    created_at: datetime
+    last_used_at: datetime | None
+    is_active: bool
+
+    model_config = {"from_attributes": True}
+
+
+class ApiTokenCreated(ApiTokenOut):
+    """Returned once at creation time — includes the raw secret."""
+
+    raw_token: str

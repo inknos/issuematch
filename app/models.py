@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy import (
     JSON,
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -59,7 +60,7 @@ class Issue(Base):
 
 
 class User(Base):
-    """A user authenticated via GitHub OAuth."""
+    """An application user authenticated via username/password."""
 
     __tablename__ = "users"
     __table_args__ = (
@@ -70,14 +71,14 @@ class User(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    github_id: Mapped[int] = mapped_column(Integer, unique=True, nullable=False)
-    username: Mapped[str] = mapped_column(String, nullable=False)
+    username: Mapped[str] = mapped_column(String, unique=True, nullable=False)
     avatar_url: Mapped[str | None] = mapped_column(String, nullable=True)
-    access_token: Mapped[str | None] = mapped_column(String, nullable=True)
     github_token_encrypted: Mapped[str | None] = mapped_column(String, nullable=True)
+    password_hash: Mapped[str | None] = mapped_column(String, nullable=True)
     role: Mapped[str] = mapped_column(String, nullable=False, default=Role.contributor.value)
 
     votes: Mapped[list[Vote]] = relationship(back_populates="user")
+    api_tokens: Mapped[list[ApiToken]] = relationship(back_populates="user")
 
 
 class Vote(Base):
@@ -107,6 +108,37 @@ class Vote(Base):
         back_populates="votes",
         primaryjoin="Issue.id == foreign(Vote.issue_id)",
     )
+
+
+class ApiToken(Base):
+    """A user-created API token for programmatic Bearer-token access."""
+
+    __tablename__ = "api_tokens"
+    __table_args__ = (
+        CheckConstraint(
+            "role IN ('admin', 'maintainer', 'contributor')",
+            name="ck_api_token_role",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
+    token_hash: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    token_prefix: Mapped[str] = mapped_column(String, nullable=False)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    role: Mapped[str] = mapped_column(String, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+    )
+    last_used_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+    user: Mapped[User] = relationship(back_populates="api_tokens")
 
 
 class AuditLog(Base):

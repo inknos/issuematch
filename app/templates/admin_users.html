@@ -154,14 +154,78 @@
 
 <h3 class="mb-3">User Management</h3>
 
+<div class="card mb-4">
+  <div class="card-body">
+    <h5 class="card-title">Create User</h5>
+    <form id="create-user-form" class="row g-2 align-items-end">
+      <div class="col-auto">
+        <label for="new-username" class="form-label">Username</label>
+        <input type="text" class="form-control form-control-sm" id="new-username" required>
+      </div>
+      <div class="col-auto">
+        <label for="new-role" class="form-label">Role</label>
+        <select class="form-select form-select-sm" id="new-role">
+          <option value="contributor" selected>contributor</option>
+          <option value="maintainer">maintainer</option>
+          <option value="admin">admin</option>
+        </select>
+      </div>
+      <div class="col-auto">
+        <label for="new-password" class="form-label">Password</label>
+        <input type="password" class="form-control form-control-sm" id="new-password"
+               placeholder="Min 8 chars" required autocomplete="off">
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-primary btn-sm">Create</button>
+      </div>
+      <div class="col-12">
+        <span class="small" id="create-user-msg"></span>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+document.getElementById("create-user-form").addEventListener("submit", function(e) {
+  e.preventDefault();
+  var msg = document.getElementById("create-user-msg");
+  var username = document.getElementById("new-username").value.trim();
+  var role = document.getElementById("new-role").value;
+  var password = document.getElementById("new-password").value;
+  msg.textContent = "";
+  if (password.length < 8) {
+    msg.textContent = "Password must be at least 8 characters.";
+    msg.className = "small text-danger";
+    return;
+  }
+  fetch("/api/admin/users", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({username: username, role: role, password: password})
+  }).then(function(resp) {
+    if (resp.ok) {
+      window.location.reload();
+    } else {
+      return resp.json().then(function(data) {
+        msg.textContent = data.detail || "Failed to create user.";
+        msg.className = "small text-danger";
+      });
+    }
+  }).catch(function() {
+    msg.textContent = "Failed to create user.";
+    msg.className = "small text-danger";
+  });
+});
+</script>
+
 <div class="table-responsive">
   <table class="table table-striped align-middle">
     <thead>
       <tr>
         <th>ID</th>
         <th>Username</th>
-        <th>GitHub&nbsp;ID</th>
         <th>Role</th>
+        <th>Password</th>
         <th></th>
       </tr>
     </thead>
@@ -175,7 +239,6 @@
           {% endif %}
           {{ user.username }}
         </td>
-        <td>{{ user.github_id }}</td>
         <td>
           <select
             class="form-select form-select-sm"
@@ -196,6 +259,35 @@
             <option value="maintainer"  {% if user.role == 'maintainer' %}selected{% endif %}>maintainer</option>
             <option value="contributor" {% if user.role == 'contributor' %}selected{% endif %}>contributor</option>
           </select>
+        </td>
+        <td>
+          <div class="input-group input-group-sm" style="width:220px">
+            <input type="password" class="form-control" id="pw-input-{{ user.id }}"
+                   placeholder="New password" autocomplete="off">
+            <button class="btn btn-outline-primary" type="button" onclick="
+              var inp = document.getElementById('pw-input-{{ user.id }}');
+              var pw = inp.value.trim();
+              var badge = document.getElementById('pw-status-{{ user.id }}');
+              if (!pw || pw.length < 8) { badge.textContent = 'Min 8 chars'; badge.className = 'badge bg-danger'; return; }
+              fetch('/api/admin/users/{{ user.id }}/password', {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({new_password: pw})
+              }).then(function(resp) {
+                if (resp.ok) {
+                  inp.value = '';
+                  badge.textContent = 'Set';
+                  badge.className = 'badge bg-success';
+                } else {
+                  badge.textContent = 'Failed';
+                  badge.className = 'badge bg-danger';
+                }
+              }).catch(function() { badge.textContent = 'Failed'; badge.className = 'badge bg-danger'; });
+            ">Set</button>
+          </div>
+          <span class="badge bg-secondary mt-1" id="pw-status-{{ user.id }}">
+            {{ "Has password" if user.password_hash else "No password" }}
+          </span>
         </td>
         <td>
           <span class="badge bg-secondary" id="status-{{ user.id }}"></span>

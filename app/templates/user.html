@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+{% block title %}Account — IssueMatch{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">Account</h2>
+
+<div class="row g-4 mb-5">
+
+  <!-- Change Password Card -->
+  <div class="col-12 col-md-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <h5 class="card-title">Change Password</h5>
+        {% if has_password %}
+        <form id="pw-form" onsubmit="
+          event.preventDefault();
+          var cur = document.getElementById('cur-pw').value;
+          var np = document.getElementById('new-pw').value;
+          var cp = document.getElementById('confirm-pw').value;
+          var msg = document.getElementById('pw-msg');
+          msg.textContent = '';
+          if (np !== cp) { msg.textContent = 'Passwords do not match.'; msg.className = 'text-danger small mt-2'; return; }
+          if (np.length < 8) { msg.textContent = 'Password must be at least 8 characters.'; msg.className = 'text-danger small mt-2'; return; }
+          fetch('/api/user/password', {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({current_password: cur, new_password: np})
+          }).then(function(resp) {
+            if (resp.ok) {
+              msg.textContent = 'Password updated.';
+              msg.className = 'text-success small mt-2';
+              document.getElementById('pw-form').reset();
+            } else {
+              return resp.json().then(function(d) {
+                msg.textContent = d.detail || 'Failed.';
+                msg.className = 'text-danger small mt-2';
+              });
+            }
+          }).catch(function() { msg.textContent = 'Failed.'; msg.className = 'text-danger small mt-2'; });
+        ">
+          <div class="mb-3">
+            <label for="cur-pw" class="form-label">Current password</label>
+            <input type="password" class="form-control" id="cur-pw" required autocomplete="current-password">
+          </div>
+          <div class="mb-3">
+            <label for="new-pw" class="form-label">New password</label>
+            <input type="password" class="form-control" id="new-pw" required minlength="8" autocomplete="new-password">
+          </div>
+          <div class="mb-3">
+            <label for="confirm-pw" class="form-label">Confirm new password</label>
+            <input type="password" class="form-control" id="confirm-pw" required minlength="8" autocomplete="new-password">
+          </div>
+          <button type="submit" class="btn btn-primary">Update Password</button>
+          <div id="pw-msg" class="small mt-2"></div>
+        </form>
+        {% else %}
+        <p class="text-muted">No password set for your account. Ask an admin to set one for you.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- API Tokens Card -->
+  <div class="col-12 col-md-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <h5 class="card-title">API Tokens</h5>
+        <p class="card-text text-muted">
+          Create tokens for programmatic access. Each token acts with the permissions you assign.
+        </p>
+
+        <form id="token-create-form" onsubmit="
+          event.preventDefault();
+          var name = document.getElementById('tk-name').value.trim();
+          var role = document.getElementById('tk-role').value;
+          var msg = document.getElementById('tk-msg');
+          msg.textContent = '';
+          if (!name) return;
+          fetch('/api/tokens', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({name: name, role: role})
+          }).then(function(resp) {
+            if (resp.ok) {
+              return resp.json().then(function(data) {
+                document.getElementById('tk-name').value = '';
+                var box = document.getElementById('tk-reveal');
+                box.classList.remove('d-none');
+                document.getElementById('tk-raw').value = data.raw_token;
+                msg.textContent = 'Token created. Copy it now — it will not be shown again.';
+                msg.className = 'text-success small mt-2';
+                loadTokens();
+              });
+            } else {
+              return resp.json().then(function(d) {
+                msg.textContent = d.detail || 'Failed.';
+                msg.className = 'text-danger small mt-2';
+              });
+            }
+          }).catch(function() { msg.textContent = 'Failed.'; msg.className = 'text-danger small mt-2'; });
+        ">
+          <div class="row g-2 mb-2">
+            <div class="col-7">
+              <input type="text" class="form-control" id="tk-name" placeholder="Token name" required>
+            </div>
+            <div class="col-5">
+              <select class="form-select" id="tk-role">
+                {% for r in allowed_roles %}
+                <option value="{{ r }}">{{ r }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm">Create Token</button>
+          <div id="tk-msg" class="small mt-2"></div>
+        </form>
+
+        <div id="tk-reveal" class="d-none mt-3">
+          <label class="form-label fw-bold">Your new token (copy now):</label>
+          <div class="input-group">
+            <input type="text" class="form-control font-monospace" id="tk-raw" readonly>
+            <button class="btn btn-outline-secondary" type="button" onclick="
+              var el = document.getElementById('tk-raw');
+              el.select();
+              navigator.clipboard.writeText(el.value);
+              this.textContent = 'Copied!';
+              var btn = this;
+              setTimeout(function() { btn.textContent = 'Copy'; }, 2000);
+            ">Copy</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Token list -->
+<h3 class="mb-3">Your Tokens</h3>
+<div class="table-responsive">
+  <table class="table table-striped align-middle">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Prefix</th>
+        <th>Role</th>
+        <th>Created</th>
+        <th>Last Used</th>
+        <th>Status</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="token-table-body">
+      {% for tk in tokens %}
+      <tr id="tk-row-{{ tk.id }}">
+        <td>{{ tk.name }}</td>
+        <td><code>{{ tk.token_prefix }}...</code></td>
+        <td>{{ tk.role }}</td>
+        <td>{{ tk.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+        <td>{{ tk.last_used_at.strftime('%Y-%m-%d %H:%M') if tk.last_used_at else '—' }}</td>
+        <td>
+          {% if tk.is_active %}
+            <span class="badge bg-success">Active</span>
+          {% else %}
+            <span class="badge bg-secondary">Revoked</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if tk.is_active %}
+          <button class="btn btn-outline-danger btn-sm" onclick="revokeToken({{ tk.id }}, this)">Revoke</button>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if not tokens %}
+  <p class="text-muted" id="no-tokens-msg">No tokens yet.</p>
+{% endif %}
+
+<script>
+function revokeToken(id, btn) {
+  if (!confirm('Revoke this token?')) return;
+  fetch('/api/tokens/' + id, { method: 'DELETE' }).then(function(resp) {
+    if (resp.ok) location.reload();
+    else alert('Failed to revoke token.');
+  });
+}
+function loadTokens() {
+  fetch('/api/tokens').then(function(r) { return r.json(); }).then(function(tokens) {
+    var tbody = document.getElementById('token-table-body');
+    tbody.innerHTML = '';
+    var noMsg = document.getElementById('no-tokens-msg');
+    if (noMsg) noMsg.remove();
+    tokens.forEach(function(tk) {
+      var tr = document.createElement('tr');
+      tr.id = 'tk-row-' + tk.id;
+      tr.innerHTML =
+        '<td>' + tk.name + '</td>' +
+        '<td><code>' + tk.token_prefix + '...</code></td>' +
+        '<td>' + tk.role + '</td>' +
+        '<td>' + new Date(tk.created_at).toLocaleString() + '</td>' +
+        '<td>' + (tk.last_used_at ? new Date(tk.last_used_at).toLocaleString() : '\u2014') + '</td>' +
+        '<td><span class="badge ' + (tk.is_active ? 'bg-success">Active' : 'bg-secondary">Revoked') + '</span></td>' +
+        '<td>' + (tk.is_active ? '<button class="btn btn-outline-danger btn-sm" onclick="revokeToken(' + tk.id + ', this)">Revoke</button>' : '') + '</td>';
+      tbody.appendChild(tr);
+    });
+  });
+}
+</script>
+{% endblock %}

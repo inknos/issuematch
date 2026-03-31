@@ -9,12 +9,7 @@ from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
-_REQUIRED_SECRETS = (
-    "GITHUB_CLIENT_ID",
-    "GITHUB_CLIENT_SECRET",
-    "SESSION_SECRET",
-    "BASE_URL",
-)
+_REQUIRED_SECRETS = ("SESSION_SECRET",)
 
 
 def validate_secrets() -> None:
@@ -25,10 +20,7 @@ def validate_secrets() -> None:
         raise SystemExit(msg)
 
 
-GITHUB_CLIENT_ID: str = os.environ.get("GITHUB_CLIENT_ID", "")
-GITHUB_CLIENT_SECRET: str = os.environ.get("GITHUB_CLIENT_SECRET", "")
 SESSION_SECRET: str = os.environ.get("SESSION_SECRET", "")
-BASE_URL: str = os.environ.get("BASE_URL", "")
 
 DB_HOST: str = os.environ.get("DB_HOST", "localhost")
 DB_PORT: str = os.environ.get("DB_PORT", "5432")

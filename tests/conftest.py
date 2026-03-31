@@ -41,6 +41,7 @@ async def client() -> AsyncGenerator[AsyncClient, None]:
     from app.main import app  # noqa: PLC0415
 
     app.dependency_overrides[get_session] = _override_get_session
+    app.state.session_factory = async_test_session
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         yield c
@@ -51,10 +52,8 @@ async def client() -> AsyncGenerator[AsyncClient, None]:
 async def seed_data(session: AsyncSession) -> dict:
     """Create a sample User (contributor) and Issues, return their identifiers."""
     user = User(
-        github_id=12345,
         username="testuser",
         avatar_url=None,
-        access_token=None,
         role="contributor",
     )
     session.add(user)
@@ -102,10 +101,8 @@ async def seed_data(session: AsyncSession) -> dict:
 async def admin_user(session: AsyncSession) -> dict:
     """Create an admin user, return their identifiers."""
     user = User(
-        github_id=77777,
         username="adminuser",
         avatar_url=None,
-        access_token=None,
         role="admin",
     )
     session.add(user)

@@ -35,26 +35,21 @@ spec:
           ports:
             - containerPort: 9473
           env:
-            - name: GITHUB_CLIENT_ID
-              valueFrom:
-                secretKeyRef:
-                  name: issuematch-secrets
-                  key: github_client_id
-            - name: GITHUB_CLIENT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: issuematch-secrets
-                  key: github_client_secret
             - name: SESSION_SECRET
               valueFrom:
                 secretKeyRef:
                   name: issuematch-secrets
                   key: session_secret
-            - name: BASE_URL
+            - name: ADMIN_USERNAME
               valueFrom:
                 secretKeyRef:
                   name: issuematch-secrets
-                  key: base_url
+                  key: admin_username
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: issuematch-secrets
+                  key: admin_password
             - name: DB_HOST
               valueFrom:
                 secretKeyRef:

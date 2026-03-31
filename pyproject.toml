@@ -16,8 +16,8 @@ dependencies = [
     "jinja2",
     "python-multipart",
     "python-dotenv",
-    "itsdangerous",
     "cryptography",
+    "pwdlib[argon2]",
 ]
 
 [project.optional-dependencies]
