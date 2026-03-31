@@ -13,6 +13,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from fastapi_mcp import FastApiMCP
 from sqlalchemy import select
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
@@ -67,6 +68,14 @@ templates = Jinja2Templates(directory="app/templates")
 
 app.include_router(auth_router)
 app.include_router(routes_router)
+
+mcp = FastApiMCP(
+    app,
+    name="IssueMatch",
+    description="IssueMatch voting and issue management API",
+    include_tags=["api"],
+)
+mcp.mount_http()
 
 
 @app.get("/", response_class=HTMLResponse)

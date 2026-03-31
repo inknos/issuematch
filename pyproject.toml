@@ -18,6 +18,7 @@ dependencies = [
     "python-dotenv",
     "cryptography",
     "pwdlib[argon2]",
+    "fastapi-mcp",
 ]
 
 [project.optional-dependencies]

@@ -328,7 +328,7 @@ async def results_page(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/api/votes", response_model=PaginatedVotes)
+@router.get("/api/votes", response_model=PaginatedVotes, tags=["api"], operation_id="list_votes")
 async def list_votes(
     session: SessionDep,
     issue_id: str | None = None,
@@ -364,7 +364,12 @@ async def list_votes(
     return {"items": items, "total": total, "page": page, "per_page": per_page}
 
 
-@router.get("/api/users/{user_id}/votes", response_model=list[VoteOut])
+@router.get(
+    "/api/users/{user_id}/votes",
+    response_model=list[VoteOut],
+    tags=["api"],
+    operation_id="get_user_votes",
+)
 async def get_user_votes(
     user_id: int,
     session: SessionDep,
@@ -378,7 +383,13 @@ async def get_user_votes(
     return list(result.scalars().all())
 
 
-@router.post("/api/users/{user_id}/votes", response_model=VoteOut, status_code=201)
+@router.post(
+    "/api/users/{user_id}/votes",
+    response_model=VoteOut,
+    status_code=201,
+    tags=["api"],
+    operation_id="create_vote",
+)
 async def create_user_vote(
     user_id: int,
     body: VoteCreate,
@@ -402,7 +413,12 @@ async def create_user_vote(
     return vote
 
 
-@router.put("/api/users/{user_id}/votes", response_model=VoteOut)
+@router.put(
+    "/api/users/{user_id}/votes",
+    response_model=VoteOut,
+    tags=["api"],
+    operation_id="update_vote",
+)
 async def update_user_vote(
     user_id: int,
     body: VoteUpdate,
@@ -432,7 +448,12 @@ async def update_user_vote(
     return vote
 
 
-@router.delete("/api/users/{user_id}/votes/{vote_id}", status_code=204)
+@router.delete(
+    "/api/users/{user_id}/votes/{vote_id}",
+    status_code=204,
+    tags=["api"],
+    operation_id="delete_vote",
+)
 async def delete_user_vote(
     user_id: int,
     vote_id: int,
@@ -464,7 +485,12 @@ async def delete_user_vote(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/api/activity", response_model=PaginatedAuditLog)
+@router.get(
+    "/api/activity",
+    response_model=PaginatedAuditLog,
+    tags=["api"],
+    operation_id="list_activity",
+)
 async def list_activity(
     session: SessionDep,
     user_id: int | None = None,
@@ -488,7 +514,12 @@ async def list_activity(
     return {"items": items, "total": total, "page": page, "per_page": per_page}
 
 
-@router.get("/api/users/{user_id}/activity", response_model=list[AuditLogOut])
+@router.get(
+    "/api/users/{user_id}/activity",
+    response_model=list[AuditLogOut],
+    tags=["api"],
+    operation_id="get_user_activity",
+)
 async def get_user_activity(
     user_id: int,
     session: SessionDep,
@@ -505,7 +536,12 @@ async def get_user_activity(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/api/admin/users", response_model=list[UserOut])
+@router.get(
+    "/api/admin/users",
+    response_model=list[UserOut],
+    tags=["api"],
+    operation_id="list_users",
+)
 async def list_users(
     request: Request,
     session: SessionDep,
@@ -516,7 +552,13 @@ async def list_users(
     return list(result.scalars().all())
 
 
-@router.post("/api/admin/users", response_model=UserOut, status_code=201)
+@router.post(
+    "/api/admin/users",
+    response_model=UserOut,
+    status_code=201,
+    tags=["api"],
+    operation_id="create_user",
+)
 async def create_user(
     body: UserCreate,
     request: Request,
@@ -582,7 +624,12 @@ async def update_user_role(
     return user
 
 
-@router.get("/api/admin", response_model=TokenStatusOut)
+@router.get(
+    "/api/admin",
+    response_model=TokenStatusOut,
+    tags=["api"],
+    operation_id="get_admin_status",
+)
 async def admin_status(
     request: Request,
     session: SessionDep,
@@ -594,7 +641,12 @@ async def admin_status(
     return {"has_token": user.github_token_encrypted is not None}
 
 
-@router.put("/api/admin", response_model=TokenStatusOut)
+@router.put(
+    "/api/admin",
+    response_model=TokenStatusOut,
+    tags=["api"],
+    operation_id="update_admin_token",
+)
 async def update_admin_token(
     body: AdminTokenUpdate,
     request: Request,
@@ -610,7 +662,7 @@ async def update_admin_token(
     return {"has_token": True}
 
 
-@router.put("/api/admin/users/{user_id}/password")
+@router.put("/api/admin/users/{user_id}/password", tags=["api"], operation_id="reset_user_password")
 async def admin_reset_password(
     user_id: int,
     body: AdminPasswordReset,
@@ -633,7 +685,12 @@ async def admin_reset_password(
     return {"ok": True}
 
 
-@router.post("/api/admin/fetch", response_model=FetchResult)
+@router.post(
+    "/api/admin/fetch",
+    response_model=FetchResult,
+    tags=["api"],
+    operation_id="fetch_issues",
+)
 async def admin_fetch(
     body: FetchRequest,
     request: Request,
@@ -731,7 +788,7 @@ async def user_page(
     )
 
 
-@router.put("/api/user/password")
+@router.put("/api/user/password", tags=["api"], operation_id="change_password")
 async def change_own_password(
     body: PasswordUpdate,
     request: Request,
@@ -760,7 +817,12 @@ async def change_own_password(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/api/tokens", response_model=list[ApiTokenOut])
+@router.get(
+    "/api/tokens",
+    response_model=list[ApiTokenOut],
+    tags=["api"],
+    operation_id="list_tokens",
+)
 async def list_tokens(
     request: Request,
     session: SessionDep,
@@ -773,7 +835,13 @@ async def list_tokens(
     return list(result.scalars().all())
 
 
-@router.post("/api/tokens", response_model=ApiTokenCreated, status_code=201)
+@router.post(
+    "/api/tokens",
+    response_model=ApiTokenCreated,
+    status_code=201,
+    tags=["api"],
+    operation_id="create_token",
+)
 async def create_token(
     body: ApiTokenCreate,
     request: Request,
@@ -814,7 +882,7 @@ async def create_token(
     }
 
 
-@router.delete("/api/tokens/{token_id}", status_code=204)
+@router.delete("/api/tokens/{token_id}", status_code=204, tags=["api"], operation_id="revoke_token")
 async def revoke_token(
     token_id: int,
     request: Request,
