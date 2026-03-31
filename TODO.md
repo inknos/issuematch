@@ -1,1 +1,0 @@
-- [ ] in the fetch from GH box add a toggle option to append/merge, replace, subtract
