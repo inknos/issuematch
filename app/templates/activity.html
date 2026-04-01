@@ -1,23 +1,41 @@
 {% extends "base.html" %}
 {% block title %}Activity — IssueMatch{% endblock %}
 
-{% set filter_qs = "&action_type=" ~ action_type if action_type else "" %}
+{% set user_qs = "&user_id=" ~ filter_user_id if filter_user_id else "" %}
+{% set action_qs = "&action_type=" ~ action_type if action_type else "" %}
+{% set filter_qs = action_qs ~ user_qs %}
 
 {% block content %}
 <h2 class="mb-4">Your Activity</h2>
 
 <div class="d-flex flex-wrap gap-2 mb-3">
-  <a href="/activity"
+  <a href="/activity{{ '?user_id=' ~ filter_user_id if filter_user_id else '' }}"
      class="btn btn-sm rounded-pill {% if not action_type %}btn-primary{% else %}btn-outline-secondary{% endif %}">
     All
   </a>
   {% for key, (label, cls) in action_labels.items() %}
-  <a href="/activity?action_type={{ key }}"
+  <a href="/activity?action_type={{ key }}{{ user_qs }}"
      class="btn btn-sm rounded-pill {% if action_type == key %}btn-primary{% else %}btn-outline-secondary{% endif %}">
     {{ label }}
   </a>
   {% endfor %}
 </div>
+
+{% if is_maintainer %}
+<div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+  <span class="text-muted small fw-semibold me-1">User:</span>
+  <a href="/activity{{ '?action_type=' ~ action_type if action_type else '' }}"
+     class="btn btn-sm rounded-pill {% if not filter_user_id %}btn-info{% else %}btn-outline-info{% endif %}">
+    All Users
+  </a>
+  {% for u in users %}
+  <a href="/activity?user_id={{ u.id }}{{ action_qs }}"
+     class="btn btn-sm rounded-pill {% if filter_user_id == u.id %}btn-info{% else %}btn-outline-info{% endif %}">
+    {{ u.username }}
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
 
 {% if entries %}
 <div class="table-responsive">

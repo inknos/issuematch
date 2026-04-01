@@ -251,6 +251,7 @@ async def activity_page(
     page: int = 1,
     per_page: int = 20,
     action_type: str | None = None,
+    user_id: int | None = None,
 ) -> HTMLResponse:
     """Render the paginated activity log.
 
@@ -266,6 +267,8 @@ async def activity_page(
     base = select(AuditLog)
     if not is_maintainer:
         base = base.where(AuditLog.user_id == uid)
+    elif user_id is not None:
+        base = base.where(AuditLog.user_id == user_id)
 
     if action_type:
         base = base.where(AuditLog.action["type"].as_string() == action_type.lower())
@@ -282,6 +285,11 @@ async def activity_page(
     )
     entries = list(result.scalars().all())
 
+    users: list[User] = []
+    if is_maintainer:
+        users_result = await session.execute(select(User).order_by(User.username))
+        users = list(users_result.scalars().all())
+
     total_pages = max(1, -(-total // per_page))
     return templates.TemplateResponse(
         "activity.html",
@@ -293,6 +301,9 @@ async def activity_page(
             "total_pages": total_pages,
             "action_type": action_type.lower() if action_type else None,
             "action_labels": ACTION_LABELS,
+            "is_maintainer": is_maintainer,
+            "users": users,
+            "filter_user_id": user_id,
         },
     )
 
