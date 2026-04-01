@@ -29,6 +29,7 @@ dev = [
     "pytest-asyncio",
     "pytest-cov",
     "aiosqlite",
+    "commitizen",
 ]
 analysis = [
     "numpy",
@@ -131,6 +132,15 @@ select = [
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "0.1.0"
+version_files = ["pyproject.toml:^version"]
+tag_format = "v$version"
+update_changelog_on_bump = true
+changelog_file = "CHANGELOG.md"
+major_version_zero = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
