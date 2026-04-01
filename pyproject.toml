@@ -18,7 +18,8 @@ dependencies = [
     "python-dotenv",
     "cryptography",
     "pwdlib[argon2]",
-    "fastapi-mcp",
+    "fastapi-mcp",  # exposes API routes as MCP tools at /mcp
+    "itsdangerous",  # required by starlette SessionMiddleware (optional dep)
 ]
 
 [project.optional-dependencies]
