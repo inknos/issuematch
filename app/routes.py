@@ -813,10 +813,10 @@ async def update_user_role(
 
 
 @router.get(
-    "/api/admin/json",
+    "/api/admin/github/token/json",
     response_model=TokenStatusOut,
     tags=["api"],
-    operation_id="get_admin_status",
+    operation_id="get_github_token_status",
 )
 async def admin_status(
     admin_uid: AdminUid,
@@ -829,10 +829,10 @@ async def admin_status(
 
 
 @router.put(
-    "/api/admin",
+    "/api/admin/github/token",
     response_model=TokenStatusOut,
     tags=["api"],
-    operation_id="update_admin_token",
+    operation_id="update_github_token",
 )
 async def update_admin_token(
     admin_uid: AdminUid,
@@ -871,7 +871,7 @@ async def admin_reset_password(
 
 
 @router.post(
-    "/api/admin/fetch",
+    "/api/admin/github/fetch",
     response_model=FetchResult,
     tags=["api"],
     operation_id="fetch_issues",

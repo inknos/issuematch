@@ -73,7 +73,7 @@ class MissingConfigError(BadRequestError):
     """A required server-side configuration value is absent."""
 
     error_code = "MISSING_CONFIG"
-    default_detail = "Required configuration is missing"
+    default_detail = "No GitHub token configured"
 
 
 # =========================================================================

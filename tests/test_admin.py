@@ -12,7 +12,6 @@ from app.models import User
 if TYPE_CHECKING:
     from httpx import AsyncClient
     from sqlalchemy.ext.asyncio import AsyncSession
-
     from tests.conftest import _AuthOverrider
 
 pytestmark = pytest.mark.asyncio
@@ -205,7 +204,7 @@ async def test_new_user_defaults_to_contributor(session: AsyncSession) -> None:
     assert user.role == "contributor"
 
 
-# -- GET /api/admin/json (token status, admin only) -------------------------
+# -- GET /api/admin/github/token/json (token status, admin only) -------------
 
 
 async def test_admin_status_no_token(
@@ -214,7 +213,7 @@ async def test_admin_status_no_token(
     auth: _AuthOverrider,
 ) -> None:
     with auth(admin_user["user_id"], "admin"):
-        resp = await client.get("/api/admin/json")
+        resp = await client.get("/api/admin/github/token/json")
     assert resp.status_code == 200
     assert resp.json() == {"has_token": False}
 
@@ -233,13 +232,13 @@ async def test_admin_status_with_token(
     await session.commit()
 
     with auth(admin_user["user_id"], "admin"):
-        resp = await client.get("/api/admin/json")
+        resp = await client.get("/api/admin/github/token/json")
     assert resp.status_code == 200
     assert resp.json() == {"has_token": True}
 
 
 async def test_admin_status_anonymous(client: AsyncClient) -> None:
-    resp = await client.get("/api/admin/json")
+    resp = await client.get("/api/admin/github/token/json")
     assert resp.status_code == 401
 
 
@@ -249,11 +248,11 @@ async def test_admin_status_contributor_forbidden(
     auth: _AuthOverrider,
 ) -> None:
     with auth(seed_data["user_id"], "contributor"):
-        resp = await client.get("/api/admin/json")
+        resp = await client.get("/api/admin/github/token/json")
     assert resp.status_code == 403
 
 
-# -- PUT /api/admin (set token, admin only) ---------------------------------
+# -- PUT /api/admin/github/token (set token, admin only) --------------------
 
 
 async def test_put_admin_sets_token(
@@ -262,7 +261,7 @@ async def test_put_admin_sets_token(
     auth: _AuthOverrider,
 ) -> None:
     with auth(admin_user["user_id"], "admin"):
-        resp = await client.put("/api/admin", json={"token": "ghp_newtoken123"})
+        resp = await client.put("/api/admin/github/token", json={"token": "ghp_newtoken123"})
     assert resp.status_code == 200
     assert resp.json() == {"has_token": True}
 
@@ -274,11 +273,11 @@ async def test_put_admin_never_returns_plaintext(
 ) -> None:
     token = "ghp_supersecret999"
     with auth(admin_user["user_id"], "admin"):
-        resp = await client.put("/api/admin", json={"token": token})
+        resp = await client.put("/api/admin/github/token", json={"token": token})
     assert token not in resp.text
 
     with auth(admin_user["user_id"], "admin"):
-        status_resp = await client.get("/api/admin/json")
+        status_resp = await client.get("/api/admin/github/token/json")
     assert token not in status_resp.text
 
 
@@ -288,7 +287,7 @@ async def test_put_admin_creates_audit_log(
     auth: _AuthOverrider,
 ) -> None:
     with auth(admin_user["user_id"], "admin"):
-        await client.put("/api/admin", json={"token": "ghp_audit"})
+        await client.put("/api/admin/github/token", json={"token": "ghp_audit"})
         resp = await client.get("/api/activity/json", params={"user_id": admin_user["user_id"]})
     data = resp.json()
     token_updates = [e for e in data["items"] if e["action"]["type"] == "token_update"]
@@ -296,7 +295,7 @@ async def test_put_admin_creates_audit_log(
 
 
 async def test_put_admin_anonymous(client: AsyncClient) -> None:
-    resp = await client.put("/api/admin", json={"token": "ghp_x"})
+    resp = await client.put("/api/admin/github/token", json={"token": "ghp_x"})
     assert resp.status_code == 401
 
 
@@ -306,11 +305,11 @@ async def test_put_admin_contributor_forbidden(
     auth: _AuthOverrider,
 ) -> None:
     with auth(seed_data["user_id"], "contributor"):
-        resp = await client.put("/api/admin", json={"token": "ghp_x"})
+        resp = await client.put("/api/admin/github/token", json={"token": "ghp_x"})
     assert resp.status_code == 403
 
 
-# -- POST /api/admin/fetch (maintainer+) ------------------------------------
+# -- POST /api/admin/github/fetch (maintainer+) -----------------------------
 
 
 async def test_fetch_no_token_returns_400(
@@ -320,11 +319,11 @@ async def test_fetch_no_token_returns_400(
 ) -> None:
     with auth(admin_user["user_id"], "admin"):
         resp = await client.post(
-            "/api/admin/fetch",
+            "/api/admin/github/fetch",
             json={"org": "acme", "repo": "widgets", "type": "issues"},
         )
     assert resp.status_code == 400
-    assert "No GitHub token" in resp.json()["detail"]
+    assert "No GitHub token" in resp.json()["error"]["message"]
 
 
 async def test_fetch_with_mocked_github(
@@ -333,12 +332,12 @@ async def test_fetch_with_mocked_github(
     auth: _AuthOverrider,
 ) -> None:
     with auth(admin_user["user_id"], "admin"):
-        await client.put("/api/admin", json={"token": "ghp_mock"})
+        await client.put("/api/admin/github/token", json={"token": "ghp_mock"})
 
     mock_fetch = AsyncMock(return_value=(5, 0))
     with auth(admin_user["user_id"], "admin"), patch("app.routes.fetch_and_store", mock_fetch):
         resp = await client.post(
-            "/api/admin/fetch",
+            "/api/admin/github/fetch",
             json={"org": "acme", "repo": "widgets", "type": "issues", "labels": "bug"},
         )
     assert resp.status_code == 200
@@ -365,7 +364,7 @@ async def test_fetch_maintainer_can_fetch(
 ) -> None:
     """Maintainers can trigger a fetch using any stored GitHub token."""
     with auth(admin_user["user_id"], "admin"):
-        await client.put("/api/admin", json={"token": "ghp_mock"})
+        await client.put("/api/admin/github/token", json={"token": "ghp_mock"})
 
     mock_fetch = AsyncMock(return_value=(3, 0))
     with (
@@ -376,7 +375,7 @@ async def test_fetch_maintainer_can_fetch(
         ),
     ):
         resp = await client.post(
-            "/api/admin/fetch",
+            "/api/admin/github/fetch",
             json={"org": "acme", "repo": "widgets", "type": "issues"},
         )
     assert resp.status_code == 200
@@ -385,7 +384,7 @@ async def test_fetch_maintainer_can_fetch(
 
 async def test_fetch_anonymous(client: AsyncClient) -> None:
     resp = await client.post(
-        "/api/admin/fetch",
+        "/api/admin/github/fetch",
         json={"org": "acme", "repo": "widgets", "type": "issues"},
     )
     assert resp.status_code == 401
@@ -398,7 +397,7 @@ async def test_fetch_contributor_forbidden(
 ) -> None:
     with auth(seed_data["user_id"], "contributor"):
         resp = await client.post(
-            "/api/admin/fetch",
+            "/api/admin/github/fetch",
             json={"org": "acme", "repo": "widgets", "type": "issues"},
         )
     assert resp.status_code == 403
@@ -410,12 +409,12 @@ async def test_fetch_mode_forwarded_replace(
     auth: _AuthOverrider,
 ) -> None:
     with auth(admin_user["user_id"], "admin"):
-        await client.put("/api/admin", json={"token": "ghp_mock"})
+        await client.put("/api/admin/github/token", json={"token": "ghp_mock"})
 
     mock_fetch = AsyncMock(return_value=(3, 2))
     with auth(admin_user["user_id"], "admin"), patch("app.routes.fetch_and_store", mock_fetch):
         resp = await client.post(
-            "/api/admin/fetch",
+            "/api/admin/github/fetch",
             json={"org": "acme", "repo": "widgets", "type": "issues", "mode": "replace"},
         )
     assert resp.status_code == 200
@@ -433,12 +432,12 @@ async def test_fetch_mode_forwarded_subtract(
     auth: _AuthOverrider,
 ) -> None:
     with auth(admin_user["user_id"], "admin"):
-        await client.put("/api/admin", json={"token": "ghp_mock"})
+        await client.put("/api/admin/github/token", json={"token": "ghp_mock"})
 
     mock_fetch = AsyncMock(return_value=(0, 4))
     with auth(admin_user["user_id"], "admin"), patch("app.routes.fetch_and_store", mock_fetch):
         resp = await client.post(
-            "/api/admin/fetch",
+            "/api/admin/github/fetch",
             json={"org": "acme", "repo": "widgets", "type": "issues", "mode": "subtract"},
         )
     assert resp.status_code == 200
@@ -457,12 +456,12 @@ async def test_fetch_default_mode_is_merge(
 ) -> None:
     """When mode is omitted from the request body, it defaults to merge."""
     with auth(admin_user["user_id"], "admin"):
-        await client.put("/api/admin", json={"token": "ghp_mock"})
+        await client.put("/api/admin/github/token", json={"token": "ghp_mock"})
 
     mock_fetch = AsyncMock(return_value=(1, 0))
     with auth(admin_user["user_id"], "admin"), patch("app.routes.fetch_and_store", mock_fetch):
         resp = await client.post(
-            "/api/admin/fetch",
+            "/api/admin/github/fetch",
             json={"org": "acme", "repo": "widgets", "type": "issues"},
         )
     assert resp.status_code == 200
@@ -478,7 +477,7 @@ async def test_fetch_invalid_mode_returns_422(
 ) -> None:
     with auth(admin_user["user_id"], "admin"):
         resp = await client.post(
-            "/api/admin/fetch",
+            "/api/admin/github/fetch",
             json={"org": "acme", "repo": "widgets", "type": "issues", "mode": "nuke"},
         )
     assert resp.status_code == 422
