@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import delete, func, select
@@ -29,6 +29,22 @@ from app.crypto import (
 )
 from app.database import SessionDep
 from app.database import async_session as app_session_factory
+from app.errors import (
+    DuplicateUsernameError,
+    DuplicateVoteError,
+    EmptyFieldError,
+    ForbiddenAccessError,
+    IssueNotFoundError,
+    MissingConfigError,
+    NoPasswordSetError,
+    PasswordTooShortError,
+    RoleEscalationError,
+    SelfActionError,
+    TokenNotFoundError,
+    UserNotFoundError,
+    VoteNotFoundError,
+    WrongPasswordError,
+)
 from app.github import fetch_and_store
 
 if TYPE_CHECKING:
@@ -167,7 +183,7 @@ async def vote_page(
     issue = result.scalar_one_or_none()
 
     if issue is None:
-        raise HTTPException(status_code=404, detail="Issue not found")
+        raise IssueNotFoundError
 
     vote_result = await session.execute(
         select(Vote).where(Vote.user_id == uid, Vote.issue_id == issue_id),
@@ -414,7 +430,7 @@ async def get_issue(
     result = await session.execute(select(Issue).where(Issue.id == issue_id))
     issue = result.scalar_one_or_none()
     if issue is None:
-        raise HTTPException(status_code=404, detail="Issue not found")
+        raise IssueNotFoundError
     return issue
 
 
@@ -504,7 +520,7 @@ async def get_user_votes(
 ) -> list[Vote]:
     """Return all votes for a user (own for contributor, any for maintainer+)."""
     if caller_uid != user_id and ROLE_HIERARCHY.get(caller_role, 0) < ROLE_HIERARCHY["maintainer"]:
-        raise HTTPException(status_code=403, detail="Cannot access other users' data")
+        raise ForbiddenAccessError
     stmt = select(Vote).where(Vote.user_id == user_id)
     if issue_id is not None:
         stmt = stmt.where(Vote.issue_id == issue_id)
@@ -527,12 +543,12 @@ async def create_user_vote(
 ) -> Vote:
     """Create a vote for the given user; 409 if a vote already exists (contributor+, own only)."""
     if caller_uid != user_id:
-        raise HTTPException(status_code=403, detail="Cannot vote as another user")
+        raise ForbiddenAccessError
     existing = await session.execute(
         select(Vote).where(Vote.user_id == user_id, Vote.issue_id == body.issue_id),
     )
     if existing.scalar_one_or_none() is not None:
-        raise HTTPException(status_code=409, detail="Vote already exists")
+        raise DuplicateVoteError
     vote = Vote(user_id=user_id, issue_id=body.issue_id, ranking=body.ranking)
     session.add(vote)
     _log_action(
@@ -559,13 +575,13 @@ async def update_user_vote(
 ) -> Vote:
     """Update the ranking of an existing vote; 404 if not found (contributor+, own only)."""
     if caller_uid != user_id:
-        raise HTTPException(status_code=403, detail="Cannot vote as another user")
+        raise ForbiddenAccessError
     result = await session.execute(
         select(Vote).where(Vote.user_id == user_id, Vote.issue_id == body.issue_id),
     )
     vote = result.scalar_one_or_none()
     if vote is None:
-        raise HTTPException(status_code=404, detail="Vote not found")
+        raise VoteNotFoundError
     old_ranking = vote.ranking
     vote.ranking = body.ranking
     _log_action(
@@ -597,13 +613,13 @@ async def delete_user_vote(
 ) -> Response:
     """Delete a specific vote owned by the given user; 404 if not found (contributor+, own only)."""
     if caller_uid != user_id:
-        raise HTTPException(status_code=403, detail="Cannot vote as another user")
+        raise ForbiddenAccessError
     result = await session.execute(
         select(Vote).where(Vote.id == vote_id, Vote.user_id == user_id),
     )
     vote = result.scalar_one_or_none()
     if vote is None:
-        raise HTTPException(status_code=404, detail="Vote not found")
+        raise VoteNotFoundError
     _log_action(
         session,
         user_id,
@@ -667,7 +683,7 @@ async def get_user_activity(
 ) -> list[AuditLog]:
     """Return activity for a user (own for contributor, any for maintainer+)."""
     if caller_uid != user_id and ROLE_HIERARCHY.get(caller_role, 0) < ROLE_HIERARCHY["maintainer"]:
-        raise HTTPException(status_code=403, detail="Cannot access other users' data")
+        raise ForbiddenAccessError
     result = await session.execute(
         select(AuditLog).where(AuditLog.user_id == user_id).order_by(AuditLog.timestamp.desc()),
     )
@@ -709,14 +725,14 @@ async def create_user(
     """Create a new user with a role and password (admin only)."""
     username = body.username.strip()
     if not username:
-        raise HTTPException(status_code=400, detail="Username must not be empty")
+        raise EmptyFieldError
     min_password_length = 8
     if len(body.password) < min_password_length:
-        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+        raise PasswordTooShortError
 
     existing = await session.execute(select(User).where(User.username == username))
     if existing.scalar_one_or_none() is not None:
-        raise HTTPException(status_code=409, detail="Username already exists")
+        raise DuplicateUsernameError
 
     user = User(
         username=username,
@@ -747,11 +763,11 @@ async def delete_user(
 ) -> Response:
     """Delete a user and all their related data (admin only)."""
     if admin_uid == user_id:
-        raise HTTPException(status_code=403, detail="Cannot delete yourself")
+        raise SelfActionError
     result = await session.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise UserNotFoundError
 
     username = user.username
     await session.execute(delete(ApiToken).where(ApiToken.user_id == user_id))
@@ -778,7 +794,7 @@ async def update_user_role(
     result = await session.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise UserNotFoundError
     old_role = user.role
     user.role = body.role
     _log_action(
@@ -843,7 +859,7 @@ async def admin_reset_password(
     result = await session.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise UserNotFoundError
     user.password_hash = hash_password(body.new_password)
     _log_action(
         session,
@@ -871,7 +887,7 @@ async def admin_fetch(
     )
     token_user = result.scalar_one_or_none()
     if token_user is None:
-        raise HTTPException(status_code=400, detail="No GitHub token configured")
+        raise MissingConfigError
 
     token = decrypt_token(token_user.github_token_encrypted)
     upserted, removed = await fetch_and_store(
@@ -970,10 +986,10 @@ async def change_own_password(
 
     if user.password_hash is None:
         verify_password(body.current_password, DUMMY_HASH)
-        raise HTTPException(status_code=400, detail="No password set — ask an admin to set one")
+        raise NoPasswordSetError
 
     if not verify_password(body.current_password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Current password is incorrect")
+        raise WrongPasswordError
 
     user.password_hash = hash_password(body.new_password)
     _log_action(session, caller_uid, {"type": "password_change"})
@@ -1021,10 +1037,8 @@ async def create_token(
     user_level = ROLE_HIERARCHY.get(caller_role, 1)
     requested_level = ROLE_HIERARCHY.get(body.role, 0)
     if requested_level > user_level:
-        raise HTTPException(
-            status_code=403,
-            detail=f"Cannot create token with role '{body.role}' — exceeds your level",
-        )
+        msg = f"Cannot create token with role '{body.role}' — exceeds your level"
+        raise RoleEscalationError(msg)
 
     raw, token_hash, prefix = generate_api_token()
     api_token = ApiToken(
@@ -1066,7 +1080,7 @@ async def revoke_token(
     )
     api_token = result.scalar_one_or_none()
     if api_token is None:
-        raise HTTPException(status_code=404, detail="Token not found")
+        raise TokenNotFoundError
     api_token.is_active = False
     _log_action(session, caller_uid, {"type": "api_token_revoke", "token_id": token_id})
     await session.commit()

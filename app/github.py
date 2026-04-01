@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Literal
 import httpx
 from sqlalchemy import delete, select
 
+from app.errors import GitHubAPIError
 from app.models import Issue
 
 if TYPE_CHECKING:
@@ -53,7 +54,11 @@ async def fetch_and_store(
         while True:
             url = f"{GITHUB_API}/repos/{org}/{repo}/{item_type}"
             resp = await client.get(url, params=params)
-            resp.raise_for_status()
+            try:
+                resp.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                msg = f"GitHub API responded with {exc.response.status_code} for {org}/{repo}"
+                raise GitHubAPIError(msg) from exc
             items = resp.json()
             if not items:
                 break

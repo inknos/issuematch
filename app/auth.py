@@ -4,13 +4,14 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 
 from app.config import SESSION_SECRET  # noqa: F401 — re-exported for tests
 from app.crypto import DUMMY_HASH, verify_password
 from app.database import SessionDep  # noqa: TC001 — runtime-evaluated by FastAPI DI
+from app.errors import InsufficientPermissionsError, InvalidCredentialsError, NotAuthenticatedError
 from app.models import AuditLog, Role, User
 
 router = APIRouter()
@@ -31,10 +32,10 @@ async def password_login(
 
     if user is None or user.password_hash is None:
         verify_password(password, DUMMY_HASH)
-        raise HTTPException(status_code=401, detail="Invalid username or password")
+        raise InvalidCredentialsError
 
     if not verify_password(password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Invalid username or password")
+        raise InvalidCredentialsError
 
     session.add(AuditLog(user_id=user.id, action={"type": "login", "method": "password"}))
     await session.commit()
@@ -99,7 +100,7 @@ def get_current_uid(request: Request) -> int:
     """Dependency: return authenticated user_id or raise 401."""
     uid = current_user_id(request)
     if uid is None:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+        raise NotAuthenticatedError
     return uid
 
 
@@ -107,7 +108,7 @@ def get_current_role(request: Request) -> str:
     """Dependency: return authenticated user's role or raise 401."""
     role = current_user_role(request)
     if role is None:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+        raise NotAuthenticatedError
     return role
 
 
@@ -118,7 +119,7 @@ CurrentRole = Annotated[str, Depends(get_current_role)]
 def require_contributor(uid: CurrentUid, role: CurrentRole) -> int:
     """Dependency: require at least contributor role."""
     if ROLE_HIERARCHY.get(role, 0) < ROLE_HIERARCHY["contributor"]:
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
+        raise InsufficientPermissionsError
     return uid
 
 
@@ -128,7 +129,7 @@ ContributorUid = Annotated[int, Depends(require_contributor)]
 def require_maintainer(uid: ContributorUid, role: CurrentRole) -> int:
     """Dependency: require at least maintainer role."""
     if ROLE_HIERARCHY.get(role, 0) < ROLE_HIERARCHY["maintainer"]:
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
+        raise InsufficientPermissionsError
     return uid
 
 
@@ -138,7 +139,7 @@ MaintainerUid = Annotated[int, Depends(require_maintainer)]
 def require_admin(uid: MaintainerUid, role: CurrentRole) -> int:
     """Dependency: require admin role."""
     if ROLE_HIERARCHY.get(role, 0) < ROLE_HIERARCHY["admin"]:
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
+        raise InsufficientPermissionsError
     return uid
 
 

@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
 
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi_mcp import FastApiMCP
@@ -22,6 +22,7 @@ from app.auth import router as auth_router
 from app.config import SESSION_SECRET, validate_secrets
 from app.crypto import hash_api_token
 from app.database import async_session
+from app.errors import AppError
 from app.models import ApiToken
 from app.routes import router as routes_router
 
@@ -62,6 +63,23 @@ app = FastAPI(title="IssueMatch", lifespan=lifespan)
 app.state.session_factory = async_session
 app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET)
 app.add_middleware(BearerTokenMiddleware)
+
+
+@app.exception_handler(AppError)
+async def app_error_handler(_request: Request, exc: AppError) -> JSONResponse:
+    """Serialise every AppError into a uniform JSON envelope."""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": {
+                "code": exc.error_code,
+                "message": exc.detail,
+                "status": exc.status_code,
+            },
+        },
+    )
+
+
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 templates = Jinja2Templates(directory="app/templates")
