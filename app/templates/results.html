@@ -25,7 +25,8 @@
     <thead>
       <tr>
         <th>{{ sort_link("title", "Issue") }}</th>
-        <th class="text-end">{{ sort_link("avg_ranking", "Avg") }}</th>
+        <th class="text-end">{{ sort_link("avg_ranking", "Mean") }}</th>
+        <th class="text-end">{{ sort_link("median_ranking", "Median") }}</th>
         <th class="text-end">{{ sort_link("vote_count", "Votes") }}</th>
         <th class="text-center">Action</th>
       </tr>
@@ -41,6 +42,15 @@
           {% if r.avg_ranking is not none %}
             <span class="badge {% if r.avg_ranking > 0 %}bg-success{% elif r.avg_ranking < 0 %}bg-danger{% else %}bg-secondary{% endif %}">
               {{ r.avg_ranking }}
+            </span>
+          {% else %}
+            <span class="text-muted">—</span>
+          {% endif %}
+        </td>
+        <td class="text-end">
+          {% if r.median_ranking is not none %}
+            <span class="badge {% if r.median_ranking > 0 %}bg-success{% elif r.median_ranking < 0 %}bg-danger{% else %}bg-secondary{% endif %}">
+              {{ r.median_ranking }}
             </span>
           {% else %}
             <span class="text-muted">—</span>

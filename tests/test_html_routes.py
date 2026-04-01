@@ -5,7 +5,6 @@ from unittest.mock import patch
 
 if TYPE_CHECKING:
     from httpx import AsyncClient
-
     from tests.conftest import _AuthOverrider
 
 # ---------------------------------------------------------------------------
@@ -224,6 +223,12 @@ async def test_results_page_sort_asc(client: AsyncClient, seed_data: dict) -> No
 async def test_results_page_sort_vote_count(client: AsyncClient, seed_data: dict) -> None:
     with patch("app.routes.current_user_id", return_value=seed_data["user_id"]):
         resp = await client.get("/votes", params={"sort_by": "vote_count", "order": "desc"})
+    assert resp.status_code == 200
+
+
+async def test_results_page_sort_median(client: AsyncClient, seed_data: dict) -> None:
+    with patch("app.routes.current_user_id", return_value=seed_data["user_id"]):
+        resp = await client.get("/votes", params={"sort_by": "median_ranking", "order": "desc"})
     assert resp.status_code == 200
 
 

@@ -780,8 +780,10 @@ async def test_list_results_with_votes(
     assert data["total"] == 2
     by_id = {r["issue_id"]: r for r in data["items"]}
     assert by_id[seed_data["issue_id"]]["avg_ranking"] == 3.0
+    assert by_id[seed_data["issue_id"]]["median_ranking"] == 3.0
     assert by_id[seed_data["issue_id"]]["vote_count"] == 1
     assert by_id[seed_data["issue_id_2"]]["avg_ranking"] == -1.0
+    assert by_id[seed_data["issue_id_2"]]["median_ranking"] == -1.0
 
 
 async def test_list_results_anonymous(client: AsyncClient) -> None:

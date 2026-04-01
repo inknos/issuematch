@@ -48,6 +48,8 @@ from app.errors import (
 from app.github import fetch_and_store
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import ApiToken, AuditLog, Issue, User, Vote
 from app.schemas import (
@@ -1165,6 +1167,18 @@ _RESULTS_SORT_COLUMNS = {
 }
 
 
+def _compute_median(values: Sequence[int | float]) -> float | None:
+    """Return the median of *values*, or ``None`` when empty."""
+    if not values:
+        return None
+    s = sorted(values)
+    n = len(s)
+    mid = n // 2
+    if n % 2 == 1:
+        return float(s[mid])
+    return round((s[mid - 1] + s[mid]) / 2, 2)
+
+
 async def _results_query(
     session: AsyncSession,
     *,
@@ -1208,6 +1222,23 @@ async def _results_query(
 
     offset = (max(page, 1) - 1) * per_page
     result = await session.execute(base.offset(offset).limit(per_page))
+    raw_rows = result.all()
+
+    issue_ids = [row.issue_id for row in raw_rows]
+    median_map: dict[str, float | None] = {}
+    if issue_ids:
+        vote_result = await session.execute(
+            select(Vote.issue_id, Vote.ranking).where(
+                Vote.issue_id.in_(issue_ids),
+                Vote.ranking.isnot(None),
+            ),
+        )
+        rankings_by_issue: dict[str, list[int]] = {}
+        for v in vote_result.all():
+            rankings_by_issue.setdefault(v.issue_id, []).append(v.ranking)
+        for iid in issue_ids:
+            median_map[iid] = _compute_median(rankings_by_issue.get(iid, []))
+
     rows = [
         {
             "issue_id": row.issue_id,
@@ -1217,9 +1248,18 @@ async def _results_query(
             "type": row.type,
             "title": row.title,
             "url": row.url,
-            "avg_ranking": round(row.avg_ranking, 2) if row.avg_ranking else None,
+            "avg_ranking": round(row.avg_ranking, 2) if row.avg_ranking is not None else None,
+            "median_ranking": median_map.get(row.issue_id),
             "vote_count": row.vote_count,
         }
-        for row in result.all()
+        for row in raw_rows
     ]
+
+    if sort_by == "median_ranking":
+        reverse = order != "asc"
+        rows.sort(
+            key=lambda r: (r["median_ranking"] is None, r["median_ranking"] or 0),
+            reverse=reverse,
+        )
+
     return rows, total

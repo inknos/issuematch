@@ -158,6 +158,7 @@ class ResultOut(BaseModel):
     title: str
     url: str
     avg_ranking: float | None
+    median_ranking: float | None
     vote_count: int
 
 
