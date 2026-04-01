@@ -1,3 +1,9 @@
+## v0.4.0 (2026-04-01)
+
+### Feat
+
+- **api**: introduced GET /api/me/votes/pick to select issue to vote
+
 ## v0.3.0 (2026-04-01)
 
 ### Feat
