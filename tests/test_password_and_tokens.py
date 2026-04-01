@@ -236,7 +236,7 @@ async def test_create_and_list_tokens(
     assert data["is_active"] is True
 
     with p1, p2, p3:
-        list_resp = await client.get("/api/tokens")
+        list_resp = await client.get("/api/tokens/json")
     assert list_resp.status_code == 200
     tokens = list_resp.json()
     assert len(tokens) == 1
@@ -277,7 +277,7 @@ async def test_revoke_token(
     assert del_resp.status_code == 204
 
     with p1, p2, p3:
-        list_resp = await client.get("/api/tokens")
+        list_resp = await client.get("/api/tokens/json")
     tokens = list_resp.json()
     assert tokens[0]["is_active"] is False
 
@@ -315,7 +315,7 @@ async def test_bearer_token_authenticates_api(
     await session.commit()
 
     resp = await client.get(
-        "/api/votes",
+        "/api/votes/json",
         headers={"Authorization": f"Bearer {raw}"},
     )
     assert resp.status_code == 200
@@ -323,7 +323,7 @@ async def test_bearer_token_authenticates_api(
 
 async def test_bearer_token_invalid_rejected(client: AsyncClient) -> None:
     resp = await client.get(
-        "/api/admin/users",
+        "/api/admin/users/json",
         headers={"Authorization": "Bearer im_totallyinvalid"},
     )
     assert resp.status_code == 401
@@ -347,7 +347,7 @@ async def test_bearer_token_revoked_rejected(
     await session.commit()
 
     resp = await client.get(
-        "/api/admin/users",
+        "/api/admin/users/json",
         headers={"Authorization": f"Bearer {raw}"},
     )
     assert resp.status_code == 401
@@ -370,7 +370,7 @@ async def test_bearer_token_role_enforced(
     await session.commit()
 
     resp = await client.get(
-        "/api/admin/users",
+        "/api/admin/users/json",
         headers={"Authorization": f"Bearer {raw}"},
     )
     assert resp.status_code == 403

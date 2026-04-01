@@ -34,7 +34,9 @@ from app.schemas import (
     AuditLogOut,
     FetchRequest,
     FetchResult,
+    IssueOut,
     PaginatedAuditLog,
+    PaginatedIssues,
     PaginatedVotes,
     PasswordUpdate,
     RoleUpdate,
@@ -328,7 +330,73 @@ async def results_page(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/api/votes", response_model=PaginatedVotes, tags=["api"], operation_id="list_votes")
+@router.get(
+    "/api/issues/json",
+    response_model=PaginatedIssues,
+    tags=["api"],
+    operation_id="list_issues",
+)
+async def list_issues(
+    session: SessionDep,
+    org: str | None = None,
+    repo: str | None = None,
+    item_type: str | None = None,
+    state: str | None = None,
+    page: int = 1,
+    per_page: int = 20,
+) -> dict:
+    """Return a paginated, filterable list of stored issues."""
+    base = select(Issue)
+
+    if org is not None:
+        base = base.where(Issue.org == org)
+    if repo is not None:
+        base = base.where(Issue.repo == repo)
+    if item_type is not None:
+        base = base.where(Issue.type == item_type)
+    if state is not None:
+        base = base.where(Issue.state == state)
+
+    count_result = await session.execute(select(func.count()).select_from(base.subquery()))
+    total = count_result.scalar_one()
+
+    offset = (max(page, 1) - 1) * per_page
+    result = await session.execute(
+        base.order_by(Issue.created_at.desc().nulls_last()).offset(offset).limit(per_page),
+    )
+    items = list(result.scalars().all())
+
+    return {"items": items, "total": total, "page": page, "per_page": per_page}
+
+
+@router.get(
+    "/api/issues/{org}/{repo}/{item_type}/{number}/json",
+    response_model=IssueOut,
+    tags=["api"],
+    operation_id="get_issue",
+)
+async def get_issue(
+    org: str,
+    repo: str,
+    item_type: str,
+    number: int,
+    session: SessionDep,
+) -> Issue:
+    """Return a single stored issue by its components."""
+    issue_id = f"{org}/{repo}/{item_type}/{number}"
+    result = await session.execute(select(Issue).where(Issue.id == issue_id))
+    issue = result.scalar_one_or_none()
+    if issue is None:
+        raise HTTPException(status_code=404, detail="Issue not found")
+    return issue
+
+
+@router.get(
+    "/api/votes/json",
+    response_model=PaginatedVotes,
+    tags=["api"],
+    operation_id="list_votes",
+)
 async def list_votes(
     session: SessionDep,
     issue_id: str | None = None,
@@ -365,7 +433,7 @@ async def list_votes(
 
 
 @router.get(
-    "/api/users/{user_id}/votes",
+    "/api/users/{user_id}/votes/json",
     response_model=list[VoteOut],
     tags=["api"],
     operation_id="get_user_votes",
@@ -486,7 +554,7 @@ async def delete_user_vote(
 
 
 @router.get(
-    "/api/activity",
+    "/api/activity/json",
     response_model=PaginatedAuditLog,
     tags=["api"],
     operation_id="list_activity",
@@ -515,7 +583,7 @@ async def list_activity(
 
 
 @router.get(
-    "/api/users/{user_id}/activity",
+    "/api/users/{user_id}/activity/json",
     response_model=list[AuditLogOut],
     tags=["api"],
     operation_id="get_user_activity",
@@ -537,7 +605,7 @@ async def get_user_activity(
 
 
 @router.get(
-    "/api/admin/users",
+    "/api/admin/users/json",
     response_model=list[UserOut],
     tags=["api"],
     operation_id="list_users",
@@ -625,7 +693,7 @@ async def update_user_role(
 
 
 @router.get(
-    "/api/admin",
+    "/api/admin/json",
     response_model=TokenStatusOut,
     tags=["api"],
     operation_id="get_admin_status",
@@ -818,7 +886,7 @@ async def change_own_password(
 
 
 @router.get(
-    "/api/tokens",
+    "/api/tokens/json",
     response_model=list[ApiTokenOut],
     tags=["api"],
     operation_id="list_tokens",

@@ -119,6 +119,34 @@ class FetchResult(BaseModel):
     repo: str
 
 
+class IssueOut(BaseModel):
+    """Read-only representation of a stored GitHub issue."""
+
+    id: str
+    org: str
+    repo: str
+    number: int
+    type: str
+    title: str
+    body: str | None
+    url: str
+    labels: list | None
+    state: str
+    created_at: datetime | None
+    fetched_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class PaginatedIssues(BaseModel):
+    """Paginated envelope for issue listings."""
+
+    items: list[IssueOut]
+    total: int
+    page: int
+    per_page: int
+
+
 # ---------------------------------------------------------------------------
 # Password & API-token schemas
 # ---------------------------------------------------------------------------

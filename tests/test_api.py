@@ -40,7 +40,7 @@ async def _create_vote(
 
 
 async def test_list_votes_empty(client: AsyncClient) -> None:
-    resp = await client.get("/api/votes")
+    resp = await client.get("/api/votes/json")
     assert resp.status_code == 200
     data = resp.json()
     assert data == {"items": [], "total": 0, "page": 1, "per_page": 20}
@@ -51,7 +51,7 @@ async def test_list_votes_returns_all(client: AsyncClient, seed_data: dict) -> N
     await _create_vote(client, uid, seed_data["issue_id"], 2)
     await _create_vote(client, uid, seed_data["issue_id_2"], -1)
 
-    resp = await client.get("/api/votes")
+    resp = await client.get("/api/votes/json")
     assert resp.status_code == 200
     data = resp.json()
     assert data["total"] == 2
@@ -63,7 +63,7 @@ async def test_list_votes_filter_by_issue_id(client: AsyncClient, seed_data: dic
     await _create_vote(client, uid, seed_data["issue_id"], 3)
     await _create_vote(client, uid, seed_data["issue_id_2"], -1)
 
-    resp = await client.get("/api/votes", params={"issue_id": seed_data["issue_id"]})
+    resp = await client.get("/api/votes/json", params={"issue_id": seed_data["issue_id"]})
     assert resp.status_code == 200
     data = resp.json()
     assert data["total"] == 1
@@ -74,11 +74,11 @@ async def test_list_votes_filter_by_org(client: AsyncClient, seed_data: dict) ->
     uid = seed_data["user_id"]
     await _create_vote(client, uid, seed_data["issue_id"], 1)
 
-    resp = await client.get("/api/votes", params={"org": "acme"})
+    resp = await client.get("/api/votes/json", params={"org": "acme"})
     assert resp.status_code == 200
     assert resp.json()["total"] == 1
 
-    resp = await client.get("/api/votes", params={"org": "nonexistent"})
+    resp = await client.get("/api/votes/json", params={"org": "nonexistent"})
     assert resp.status_code == 200
     assert resp.json()["total"] == 0
 
@@ -88,7 +88,7 @@ async def test_list_votes_filter_by_repo(client: AsyncClient, seed_data: dict) -
     await _create_vote(client, uid, seed_data["issue_id"], 1)
     await _create_vote(client, uid, seed_data["issue_id_2"], -2)
 
-    resp = await client.get("/api/votes", params={"repo": "widgets"})
+    resp = await client.get("/api/votes/json", params={"repo": "widgets"})
     assert resp.status_code == 200
     data = resp.json()
     assert data["total"] == 1
@@ -99,11 +99,11 @@ async def test_list_votes_filter_by_user_id(client: AsyncClient, seed_data: dict
     uid = seed_data["user_id"]
     await _create_vote(client, uid, seed_data["issue_id"], 1)
 
-    resp = await client.get("/api/votes", params={"user_id": uid})
+    resp = await client.get("/api/votes/json", params={"user_id": uid})
     assert resp.status_code == 200
     assert resp.json()["total"] == 1
 
-    resp = await client.get("/api/votes", params={"user_id": 99999})
+    resp = await client.get("/api/votes/json", params={"user_id": 99999})
     assert resp.status_code == 200
     assert resp.json()["total"] == 0
 
@@ -113,20 +113,20 @@ async def test_list_votes_pagination(client: AsyncClient, seed_data: dict) -> No
     await _create_vote(client, uid, seed_data["issue_id"], 2)
     await _create_vote(client, uid, seed_data["issue_id_2"], -1)
 
-    resp = await client.get("/api/votes", params={"per_page": 1, "page": 1})
+    resp = await client.get("/api/votes/json", params={"per_page": 1, "page": 1})
     data = resp.json()
     assert data["total"] == 2
     assert len(data["items"]) == 1
     assert data["page"] == 1
     assert data["per_page"] == 1
 
-    resp = await client.get("/api/votes", params={"per_page": 1, "page": 2})
+    resp = await client.get("/api/votes/json", params={"per_page": 1, "page": 2})
     data = resp.json()
     assert data["total"] == 2
     assert len(data["items"]) == 1
     assert data["page"] == 2
 
-    resp = await client.get("/api/votes", params={"per_page": 1, "page": 3})
+    resp = await client.get("/api/votes/json", params={"per_page": 1, "page": 3})
     data = resp.json()
     assert data["total"] == 2
     assert len(data["items"]) == 0
@@ -137,7 +137,7 @@ async def test_list_votes_pagination_with_filter(client: AsyncClient, seed_data:
     await _create_vote(client, uid, seed_data["issue_id"], 3)
     await _create_vote(client, uid, seed_data["issue_id_2"], -1)
 
-    resp = await client.get("/api/votes", params={"org": "acme", "per_page": 1, "page": 1})
+    resp = await client.get("/api/votes/json", params={"org": "acme", "per_page": 1, "page": 1})
     data = resp.json()
     assert data["total"] == 2
     assert len(data["items"]) == 1
@@ -148,7 +148,7 @@ async def test_list_votes_pagination_with_filter(client: AsyncClient, seed_data:
 
 async def test_get_user_votes_empty(client: AsyncClient, seed_data: dict) -> None:
     uid = seed_data["user_id"]
-    resp = await client.get(f"/api/users/{uid}/votes")
+    resp = await client.get(f"/api/users/{uid}/votes/json")
     assert resp.status_code == 200
     assert resp.json() == []
 
@@ -158,7 +158,7 @@ async def test_get_user_votes_all(client: AsyncClient, seed_data: dict) -> None:
     await _create_vote(client, uid, seed_data["issue_id"], 3)
     await _create_vote(client, uid, seed_data["issue_id_2"], -1)
 
-    resp = await client.get(f"/api/users/{uid}/votes")
+    resp = await client.get(f"/api/users/{uid}/votes/json")
     assert resp.status_code == 200
     assert len(resp.json()) == 2
 
@@ -169,7 +169,7 @@ async def test_get_user_votes_filter_by_issue_id(client: AsyncClient, seed_data:
     await _create_vote(client, uid, seed_data["issue_id_2"], -3)
 
     resp = await client.get(
-        f"/api/users/{uid}/votes",
+        f"/api/users/{uid}/votes/json",
         params={"issue_id": seed_data["issue_id_2"]},
     )
     assert resp.status_code == 200
@@ -254,7 +254,7 @@ async def test_delete_vote(client: AsyncClient, seed_data: dict) -> None:
     resp = await client.delete(f"/api/users/{uid}/votes/{vote_id}")
     assert resp.status_code == 204
 
-    get_resp = await client.get(f"/api/users/{uid}/votes")
+    get_resp = await client.get(f"/api/users/{uid}/votes/json")
     assert get_resp.json() == []
 
 
@@ -280,7 +280,7 @@ async def test_delete_vote_creates_audit_entry(client: AsyncClient, seed_data: d
 
     await client.delete(f"/api/users/{uid}/votes/{vote_id}")
 
-    activity_resp = await client.get("/api/activity", params={"user_id": uid})
+    activity_resp = await client.get("/api/activity/json", params={"user_id": uid})
     entries = activity_resp.json()["items"]
     delete_entries = [e for e in entries if e["action"]["type"] == "vote_delete"]
     assert len(delete_entries) == 1
@@ -294,7 +294,7 @@ async def test_delete_vote_creates_audit_entry(client: AsyncClient, seed_data: d
 
 
 async def test_list_activity_empty(client: AsyncClient) -> None:
-    resp = await client.get("/api/activity")
+    resp = await client.get("/api/activity/json")
     assert resp.status_code == 200
     data = resp.json()
     assert data == {"items": [], "total": 0, "page": 1, "per_page": 20}
@@ -304,7 +304,7 @@ async def test_activity_created_on_vote_create(client: AsyncClient, seed_data: d
     uid = seed_data["user_id"]
     await _create_vote(client, uid, seed_data["issue_id"], 2)
 
-    resp = await client.get("/api/activity")
+    resp = await client.get("/api/activity/json")
     assert resp.status_code == 200
     data = resp.json()
     assert data["total"] == 1
@@ -325,7 +325,7 @@ async def test_activity_created_on_vote_update(client: AsyncClient, seed_data: d
         json={"issue_id": seed_data["issue_id"], "ranking": -2},
     )
 
-    resp = await client.get("/api/activity", params={"user_id": uid})
+    resp = await client.get("/api/activity/json", params={"user_id": uid})
     data = resp.json()
     assert data["total"] == 2
     update_entry = data["items"][0]
@@ -338,10 +338,10 @@ async def test_list_activity_filter_by_user(client: AsyncClient, seed_data: dict
     uid = seed_data["user_id"]
     await _create_vote(client, uid, seed_data["issue_id"], 3)
 
-    resp = await client.get("/api/activity", params={"user_id": uid})
+    resp = await client.get("/api/activity/json", params={"user_id": uid})
     assert resp.json()["total"] == 1
 
-    resp = await client.get("/api/activity", params={"user_id": 99999})
+    resp = await client.get("/api/activity/json", params={"user_id": 99999})
     assert resp.json()["total"] == 0
 
 
@@ -350,16 +350,16 @@ async def test_list_activity_pagination(client: AsyncClient, seed_data: dict) ->
     await _create_vote(client, uid, seed_data["issue_id"], 2)
     await _create_vote(client, uid, seed_data["issue_id_2"], -1)
 
-    resp = await client.get("/api/activity", params={"per_page": 1, "page": 1})
+    resp = await client.get("/api/activity/json", params={"per_page": 1, "page": 1})
     data = resp.json()
     assert data["total"] == 2
     assert len(data["items"]) == 1
 
-    resp = await client.get("/api/activity", params={"per_page": 1, "page": 2})
+    resp = await client.get("/api/activity/json", params={"per_page": 1, "page": 2})
     data = resp.json()
     assert len(data["items"]) == 1
 
-    resp = await client.get("/api/activity", params={"per_page": 1, "page": 3})
+    resp = await client.get("/api/activity/json", params={"per_page": 1, "page": 3})
     assert len(resp.json()["items"]) == 0
 
 
@@ -368,7 +368,7 @@ async def test_list_activity_pagination(client: AsyncClient, seed_data: dict) ->
 
 async def test_get_user_activity_empty(client: AsyncClient, seed_data: dict) -> None:
     uid = seed_data["user_id"]
-    resp = await client.get(f"/api/users/{uid}/activity")
+    resp = await client.get(f"/api/users/{uid}/activity/json")
     assert resp.status_code == 200
     assert resp.json() == []
 
@@ -378,7 +378,7 @@ async def test_get_user_activity(client: AsyncClient, seed_data: dict) -> None:
     await _create_vote(client, uid, seed_data["issue_id"], 3)
     await _create_vote(client, uid, seed_data["issue_id_2"], -1)
 
-    resp = await client.get(f"/api/users/{uid}/activity")
+    resp = await client.get(f"/api/users/{uid}/activity/json")
     assert resp.status_code == 200
     entries = resp.json()
     assert len(entries) == 2
@@ -440,7 +440,7 @@ async def test_vote_reconnects_after_issue_recreated(
     session.add(restored)
     await session.commit()
 
-    resp = await client.get(f"/api/users/{uid}/votes", params={"issue_id": issue_id})
+    resp = await client.get(f"/api/users/{uid}/votes/json", params={"issue_id": issue_id})
     assert resp.status_code == 200
     votes = resp.json()
     assert len(votes) == 1

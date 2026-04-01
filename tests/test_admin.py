@@ -58,7 +58,7 @@ async def test_list_users_admin(
 ) -> None:
     p1, p2, p3 = _mock_role(_admin_session(admin_user))
     with p1, p2, p3:
-        resp = await client.get("/api/admin/users")
+        resp = await client.get("/api/admin/users/json")
     assert resp.status_code == 200
     users = resp.json()
     assert len(users) >= 2
@@ -71,12 +71,12 @@ async def test_list_users_contributor_forbidden(
 ) -> None:
     p1, p2, p3 = _mock_role(_contributor_session(seed_data))
     with p1, p2, p3:
-        resp = await client.get("/api/admin/users")
+        resp = await client.get("/api/admin/users/json")
     assert resp.status_code == 403
 
 
 async def test_list_users_anonymous_unauthorized(client: AsyncClient) -> None:
-    resp = await client.get("/api/admin/users")
+    resp = await client.get("/api/admin/users/json")
     assert resp.status_code == 401
 
 
@@ -114,7 +114,7 @@ async def test_update_role_creates_audit_log(
             json={"role": "admin"},
         )
 
-    resp = await client.get("/api/activity", params={"user_id": admin_user["user_id"]})
+    resp = await client.get("/api/activity/json", params={"user_id": admin_user["user_id"]})
     data = resp.json()
     role_changes = [e for e in data["items"] if e["action"]["type"] == "role_change"]
     assert len(role_changes) == 1
@@ -219,7 +219,7 @@ async def test_admin_status_no_token(
 ) -> None:
     p1, p2, p3 = _mock_role(_admin_session(admin_user))
     with p1, p2, p3:
-        resp = await client.get("/api/admin")
+        resp = await client.get("/api/admin/json")
     assert resp.status_code == 200
     assert resp.json() == {"has_token": False}
 
@@ -238,13 +238,13 @@ async def test_admin_status_with_token(
 
     p1, p2, p3 = _mock_role(_admin_session(admin_user))
     with p1, p2, p3:
-        resp = await client.get("/api/admin")
+        resp = await client.get("/api/admin/json")
     assert resp.status_code == 200
     assert resp.json() == {"has_token": True}
 
 
 async def test_admin_status_anonymous(client: AsyncClient) -> None:
-    resp = await client.get("/api/admin")
+    resp = await client.get("/api/admin/json")
     assert resp.status_code == 401
 
 
@@ -254,7 +254,7 @@ async def test_admin_status_contributor_forbidden(
 ) -> None:
     p1, p2, p3 = _mock_role(_contributor_session(seed_data))
     with p1, p2, p3:
-        resp = await client.get("/api/admin")
+        resp = await client.get("/api/admin/json")
     assert resp.status_code == 403
 
 
@@ -283,7 +283,7 @@ async def test_put_admin_never_returns_plaintext(
     assert token not in resp.text
 
     with p1, p2, p3:
-        status_resp = await client.get("/api/admin")
+        status_resp = await client.get("/api/admin/json")
     assert token not in status_resp.text
 
 
@@ -295,7 +295,7 @@ async def test_put_admin_creates_audit_log(
     with p1, p2, p3:
         await client.put("/api/admin", json={"token": "ghp_audit"})
 
-    resp = await client.get("/api/activity", params={"user_id": admin_user["user_id"]})
+    resp = await client.get("/api/activity/json", params={"user_id": admin_user["user_id"]})
     data = resp.json()
     token_updates = [e for e in data["items"] if e["action"]["type"] == "token_update"]
     assert len(token_updates) == 1
