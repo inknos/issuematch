@@ -201,6 +201,20 @@ oc get endpoints inknos-issuematch-dev
 oc get route inknos-issuematch-dev-route-1
 ```
 
+## MCP Server (Cursor integration)
+
+The dev deployment exposes an MCP endpoint at `/mcp` (via
+`fastapi-mcp`). To use it from Cursor, port-forward the dev service
+locally:
+
+```bash
+oc port-forward svc/inknos-issuematch-dev 19473:9473
+```
+
+The MCP server is then available at `http://localhost:19473/mcp`.
+Cursor picks up the connection config from `.cursor/mcp.json` in the
+project root. A Bearer API token is required for authentication.
+
 ## Troubleshooting
 
 | Symptom | Likely cause |
