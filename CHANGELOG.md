@@ -1,3 +1,10 @@
+## v0.5.0 (2026-04-01)
+
+### Feat
+
+- **app**: add version file
+- **app**: add version file
+
 ## v0.4.0 (2026-04-01)
 
 ### Feat
