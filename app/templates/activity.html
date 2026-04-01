@@ -25,6 +25,7 @@
     <thead>
       <tr>
         <th>Time</th>
+        <th>User</th>
         <th>Action</th>
         <th>Details</th>
       </tr>
@@ -34,6 +35,7 @@
       {% set label_pair = action_labels.get(e.action.type, (e.action.type, "bg-dark")) %}
       <tr>
         <td class="text-nowrap">{{ e.timestamp.strftime("%Y-%m-%d %H:%M:%S") }}</td>
+        <td>{{ e.user.username }}</td>
         <td>
           <span class="badge {{ label_pair[1] }}">{{ label_pair[0] }}</span>
         </td>

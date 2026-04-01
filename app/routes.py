@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import delete, func, select
+from sqlalchemy.orm import selectinload
 
 from app.auth import (
     ROLE_HIERARCHY,
@@ -274,7 +275,10 @@ async def activity_page(
 
     offset = (max(page, 1) - 1) * per_page
     result = await session.execute(
-        base.order_by(AuditLog.timestamp.desc()).offset(offset).limit(per_page),
+        base.options(selectinload(AuditLog.user))
+        .order_by(AuditLog.timestamp.desc())
+        .offset(offset)
+        .limit(per_page),
     )
     entries = list(result.scalars().all())
 
