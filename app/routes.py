@@ -46,6 +46,7 @@ from app.errors import (
     WrongPasswordError,
 )
 from app.github import fetch_and_store
+from app.version import __version__
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -78,6 +79,7 @@ from app.schemas import (
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
+templates.env.globals["APP_VERSION"] = __version__
 
 
 # ---------------------------------------------------------------------------

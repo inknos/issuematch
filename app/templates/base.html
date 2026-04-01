@@ -25,18 +25,15 @@
 <body>
   <nav class="navbar navbar-expand-sm bg-body-tertiary mb-4">
     <div class="container">
-      <a class="navbar-brand fw-bold" href="/vote">IssueMatch</a>
+      <a class="navbar-brand fw-bold" href="/vote">IssueMatch <span class="badge text-bg-secondary fw-normal" style="font-size:.55em;vertical-align:middle">v{{ APP_VERSION }}</span></a>
       <div class="d-flex align-items-center gap-3">
         <a class="nav-link" href="/votes">Votes</a>
         <a class="nav-link" href="/activity">Activity</a>
-        {% if request.session.get("username") %}
-          <a class="nav-link" href="/user">Account</a>
-        {% endif %}
         {% if request.session.get("role") == "admin" %}
           <a class="nav-link" href="/admin/users">Admin</a>
         {% endif %}
         {% if request.session.get("username") %}
-          <span class="text-muted small">{{ request.session["username"] }}</span>
+          <a class="nav-link" href="/user">{{ request.session["username"] }}</a>
           <a class="btn btn-outline-secondary btn-sm" href="/logout">Logout</a>
         {% endif %}
         <button id="theme-toggle" class="btn btn-sm btn-outline-secondary" type="button" title="Toggle dark/light mode">

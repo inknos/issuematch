@@ -25,6 +25,7 @@ from app.database import async_session
 from app.errors import AppError
 from app.models import ApiToken
 from app.routes import router as routes_router
+from app.version import __version__
 
 
 @asynccontextmanager
@@ -83,6 +84,7 @@ async def app_error_handler(_request: Request, exc: AppError) -> JSONResponse:
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 templates = Jinja2Templates(directory="app/templates")
+templates.env.globals["APP_VERSION"] = __version__
 
 app.include_router(auth_router)
 app.include_router(routes_router)

@@ -17,3 +17,14 @@ build/
 analysis/
 tests/
 *.quadlets
+.cursor/
+kube/
+oc/
+TODO.md
+README.md
+CHANGELOG.md
+LICENSE
+catalog-info.yaml
+ruff_plr_output.txt
+Containerfile
+.containerignore
