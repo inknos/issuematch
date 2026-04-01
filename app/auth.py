@@ -1,8 +1,10 @@
-"""Password login/logout routes and session helpers."""
+"""Password login/logout routes, session helpers, and role dependency chain."""
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Request
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 
@@ -57,6 +59,11 @@ async def logout(request: Request, session: SessionDep) -> RedirectResponse:
     return RedirectResponse(url="/")
 
 
+# ---------------------------------------------------------------------------
+# Low-level session/bearer helpers (used by HTML pages & dependency chain)
+# ---------------------------------------------------------------------------
+
+
 def current_user_id(request: Request) -> int | None:
     """Return the authenticated user_id (Bearer token first, then session)."""
     bearer_uid = getattr(request.state, "_bearer_user_id", None)
@@ -80,15 +87,59 @@ def current_user_role(request: Request) -> str | None:
     return request.session.get("role")
 
 
-def require_role(request: Request, minimum: str) -> int:
-    """Return user_id if the user has at least *minimum* role, else raise.
+# ---------------------------------------------------------------------------
+# Hierarchical FastAPI dependency chain
+#
+#   get_current_uid ──► require_contributor ──► require_maintainer ──► require_admin
+#   get_current_role ─┘                    ─┘                     ─┘
+# ---------------------------------------------------------------------------
 
-    Raises 401 if not authenticated, 403 if role is insufficient.
-    """
+
+def get_current_uid(request: Request) -> int:
+    """Dependency: return authenticated user_id or raise 401."""
     uid = current_user_id(request)
     if uid is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    user_role = current_user_role(request) or ""
-    if ROLE_HIERARCHY.get(user_role, 0) < ROLE_HIERARCHY[minimum]:
+    return uid
+
+
+def get_current_role(request: Request) -> str:
+    """Dependency: return authenticated user's role or raise 401."""
+    role = current_user_role(request)
+    if role is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    return role
+
+
+CurrentUid = Annotated[int, Depends(get_current_uid)]
+CurrentRole = Annotated[str, Depends(get_current_role)]
+
+
+def require_contributor(uid: CurrentUid, role: CurrentRole) -> int:
+    """Dependency: require at least contributor role."""
+    if ROLE_HIERARCHY.get(role, 0) < ROLE_HIERARCHY["contributor"]:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
     return uid
+
+
+ContributorUid = Annotated[int, Depends(require_contributor)]
+
+
+def require_maintainer(uid: ContributorUid, role: CurrentRole) -> int:
+    """Dependency: require at least maintainer role."""
+    if ROLE_HIERARCHY.get(role, 0) < ROLE_HIERARCHY["maintainer"]:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    return uid
+
+
+MaintainerUid = Annotated[int, Depends(require_maintainer)]
+
+
+def require_admin(uid: MaintainerUid, role: CurrentRole) -> int:
+    """Dependency: require admin role."""
+    if ROLE_HIERARCHY.get(role, 0) < ROLE_HIERARCHY["admin"]:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    return uid
+
+
+AdminUid = Annotated[int, Depends(require_admin)]

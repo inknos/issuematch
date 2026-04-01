@@ -3,51 +3,18 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
-from unittest.mock import patch
 
 import pytest
-from app.auth import ROLE_HIERARCHY
 from app.crypto import generate_api_token, hash_password, verify_password
 from app.models import ApiToken, User
-from fastapi import HTTPException
 
 if TYPE_CHECKING:
     from httpx import AsyncClient
     from sqlalchemy.ext.asyncio import AsyncSession
 
+    from tests.conftest import _AuthOverrider
+
 pytestmark = pytest.mark.asyncio
-
-
-# ---------------------------------------------------------------------------
-# Helpers (same pattern as test_admin.py)
-# ---------------------------------------------------------------------------
-
-
-def _admin_session(admin_data: dict) -> dict:
-    return {"user_id": admin_data["user_id"], "role": "admin"}
-
-
-def _contributor_session(seed_data: dict) -> dict:
-    return {"user_id": seed_data["user_id"], "role": "contributor"}
-
-
-def _make_require_role(session_dict: dict):  # noqa: ANN202
-    def _require(_request: object, minimum: str) -> int:
-        uid = session_dict["user_id"]
-        user_role = session_dict["role"]
-        if ROLE_HIERARCHY.get(user_role, 0) < ROLE_HIERARCHY[minimum]:
-            raise HTTPException(status_code=403, detail="Insufficient permissions")
-        return uid
-
-    return _require
-
-
-def _mock_role(session_dict: dict) -> tuple:
-    return (
-        patch("app.routes.current_user_id", return_value=session_dict["user_id"]),
-        patch("app.routes.current_user_role", return_value=session_dict["role"]),
-        patch("app.routes.require_role", side_effect=_make_require_role(session_dict)),
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -109,11 +76,15 @@ async def test_password_login_unknown_user(client: AsyncClient) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Change own password
+# Change own password (contributor+)
 # ---------------------------------------------------------------------------
 
 
-async def test_change_own_password(client: AsyncClient, session: AsyncSession) -> None:
+async def test_change_own_password(
+    client: AsyncClient,
+    session: AsyncSession,
+    auth: _AuthOverrider,
+) -> None:
     user = User(
         username="changer",
         avatar_url=None,
@@ -123,9 +94,7 @@ async def test_change_own_password(client: AsyncClient, session: AsyncSession) -
     session.add(user)
     await session.commit()
 
-    sd = {"user_id": user.id, "role": "contributor"}
-    p1, p2, p3 = _mock_role(sd)
-    with p1, p2, p3:
+    with auth(user.id, "contributor"):
         resp = await client.put(
             "/api/user/password",
             json={"current_password": "old-pass", "new_password": "new-pass-123"},
@@ -137,7 +106,11 @@ async def test_change_own_password(client: AsyncClient, session: AsyncSession) -
     assert verify_password("new-pass-123", user.password_hash)
 
 
-async def test_change_password_wrong_current(client: AsyncClient, session: AsyncSession) -> None:
+async def test_change_password_wrong_current(
+    client: AsyncClient,
+    session: AsyncSession,
+    auth: _AuthOverrider,
+) -> None:
     user = User(
         username="changer2",
         avatar_url=None,
@@ -147,9 +120,7 @@ async def test_change_password_wrong_current(client: AsyncClient, session: Async
     session.add(user)
     await session.commit()
 
-    sd = {"user_id": user.id, "role": "contributor"}
-    p1, p2, p3 = _mock_role(sd)
-    with p1, p2, p3:
+    with auth(user.id, "contributor"):
         resp = await client.put(
             "/api/user/password",
             json={"current_password": "wrong", "new_password": "new123456"},
@@ -158,7 +129,7 @@ async def test_change_password_wrong_current(client: AsyncClient, session: Async
 
 
 # ---------------------------------------------------------------------------
-# Admin password reset
+# Admin password reset (admin only)
 # ---------------------------------------------------------------------------
 
 
@@ -166,10 +137,10 @@ async def test_admin_reset_password(
     client: AsyncClient,
     seed_data: dict,
     admin_user: dict,
+    auth: _AuthOverrider,
 ) -> None:
     target_uid = seed_data["user_id"]
-    p1, p2, p3 = _mock_role(_admin_session(admin_user))
-    with p1, p2, p3:
+    with auth(admin_user["user_id"], "admin"):
         resp = await client.put(
             f"/api/admin/users/{target_uid}/password",
             json={"new_password": "admin-set-pw"},
@@ -187,9 +158,9 @@ async def test_admin_reset_password(
 async def test_admin_reset_password_contributor_forbidden(
     client: AsyncClient,
     seed_data: dict,
+    auth: _AuthOverrider,
 ) -> None:
-    p1, p2, p3 = _mock_role(_contributor_session(seed_data))
-    with p1, p2, p3:
+    with auth(seed_data["user_id"], "contributor"):
         resp = await client.put(
             f"/api/admin/users/{seed_data['user_id']}/password",
             json={"new_password": "nope"},
@@ -200,9 +171,9 @@ async def test_admin_reset_password_contributor_forbidden(
 async def test_admin_reset_password_user_not_found(
     client: AsyncClient,
     admin_user: dict,
+    auth: _AuthOverrider,
 ) -> None:
-    p1, p2, p3 = _mock_role(_admin_session(admin_user))
-    with p1, p2, p3:
+    with auth(admin_user["user_id"], "admin"):
         resp = await client.put(
             "/api/admin/users/99999/password",
             json={"new_password": "doesntmatter"},
@@ -211,18 +182,16 @@ async def test_admin_reset_password_user_not_found(
 
 
 # ---------------------------------------------------------------------------
-# API token CRUD
+# API token CRUD (contributor+)
 # ---------------------------------------------------------------------------
 
 
 async def test_create_and_list_tokens(
     client: AsyncClient,
     seed_data: dict,
+    auth: _AuthOverrider,
 ) -> None:
-    sd = _contributor_session(seed_data)
-    p1, p2, p3 = _mock_role(sd)
-
-    with p1, p2, p3:
+    with auth(seed_data["user_id"], "contributor"):
         resp = await client.post(
             "/api/tokens",
             json={"name": "my-bot", "role": "contributor"},
@@ -235,7 +204,7 @@ async def test_create_and_list_tokens(
     assert data["role"] == "contributor"
     assert data["is_active"] is True
 
-    with p1, p2, p3:
+    with auth(seed_data["user_id"], "contributor"):
         list_resp = await client.get("/api/tokens/json")
     assert list_resp.status_code == 200
     tokens = list_resp.json()
@@ -247,10 +216,9 @@ async def test_create_and_list_tokens(
 async def test_create_token_role_exceeds_user_forbidden(
     client: AsyncClient,
     seed_data: dict,
+    auth: _AuthOverrider,
 ) -> None:
-    sd = _contributor_session(seed_data)
-    p1, p2, p3 = _mock_role(sd)
-    with p1, p2, p3:
+    with auth(seed_data["user_id"], "contributor"):
         resp = await client.post(
             "/api/tokens",
             json={"name": "escalation", "role": "admin"},
@@ -261,22 +229,20 @@ async def test_create_token_role_exceeds_user_forbidden(
 async def test_revoke_token(
     client: AsyncClient,
     seed_data: dict,
+    auth: _AuthOverrider,
 ) -> None:
-    sd = _contributor_session(seed_data)
-    p1, p2, p3 = _mock_role(sd)
-
-    with p1, p2, p3:
+    with auth(seed_data["user_id"], "contributor"):
         create_resp = await client.post(
             "/api/tokens",
             json={"name": "temp", "role": "contributor"},
         )
     token_id = create_resp.json()["id"]
 
-    with p1, p2, p3:
+    with auth(seed_data["user_id"], "contributor"):
         del_resp = await client.delete(f"/api/tokens/{token_id}")
     assert del_resp.status_code == 204
 
-    with p1, p2, p3:
+    with auth(seed_data["user_id"], "contributor"):
         list_resp = await client.get("/api/tokens/json")
     tokens = list_resp.json()
     assert tokens[0]["is_active"] is False
@@ -285,10 +251,9 @@ async def test_revoke_token(
 async def test_revoke_nonexistent_token(
     client: AsyncClient,
     seed_data: dict,
+    auth: _AuthOverrider,
 ) -> None:
-    sd = _contributor_session(seed_data)
-    p1, p2, p3 = _mock_role(sd)
-    with p1, p2, p3:
+    with auth(seed_data["user_id"], "contributor"):
         resp = await client.delete("/api/tokens/99999")
     assert resp.status_code == 404
 
@@ -377,17 +342,16 @@ async def test_bearer_token_role_enforced(
 
 
 # ---------------------------------------------------------------------------
-# User page HTML
+# User page HTML (contributor+)
 # ---------------------------------------------------------------------------
 
 
 async def test_user_page_renders(
     client: AsyncClient,
     seed_data: dict,
+    auth: _AuthOverrider,
 ) -> None:
-    sd = _contributor_session(seed_data)
-    p1, p2, p3 = _mock_role(sd)
-    with p1, p2, p3:
+    with auth(seed_data["user_id"], "contributor"):
         resp = await client.get("/user")
     assert resp.status_code == 200
     assert "Account" in resp.text

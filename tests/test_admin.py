@@ -1,4 +1,4 @@
-"""Tests for admin role management, token storage, and issue fetch (API + HTML)."""
+"""Tests for admin/maintainer role management, token storage, issue fetch, and user CRUD."""
 
 from __future__ import annotations
 
@@ -6,58 +6,28 @@ from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from app.auth import ROLE_HIERARCHY
 from app.crypto import encrypt_token
 from app.models import User
-from fastapi import HTTPException
 
 if TYPE_CHECKING:
     from httpx import AsyncClient
     from sqlalchemy.ext.asyncio import AsyncSession
 
+    from tests.conftest import _AuthOverrider
+
 pytestmark = pytest.mark.asyncio
 
 
-def _admin_session(admin_data: dict) -> dict:
-    return {"user_id": admin_data["user_id"], "role": "admin"}
-
-
-def _contributor_session(seed_data: dict) -> dict:
-    return {"user_id": seed_data["user_id"], "role": "contributor"}
-
-
-def _make_require_role(session_dict: dict):  # noqa: ANN202
-    """Build a fake ``require_role`` that uses *session_dict* instead of the real session."""
-
-    def _require(_request: object, minimum: str) -> int:
-        uid = session_dict["user_id"]
-        user_role = session_dict["role"]
-        if ROLE_HIERARCHY.get(user_role, 0) < ROLE_HIERARCHY[minimum]:
-            raise HTTPException(status_code=403, detail="Insufficient permissions")
-        return uid
-
-    return _require
-
-
-def _mock_role(session_dict: dict) -> tuple:
-    """Return context-manager patches for current_user_id, current_user_role, and require_role."""
-    return (
-        patch("app.routes.current_user_id", return_value=session_dict["user_id"]),
-        patch("app.auth.current_user_role", return_value=session_dict["role"]),
-        patch("app.routes.require_role", side_effect=_make_require_role(session_dict)),
-    )
-
-
-# -- GET /api/admin/users ---------------------------------------------------
+# -- GET /api/admin/users/json (maintainer+) --------------------------------
 
 
 @pytest.mark.usefixtures("seed_data")
 async def test_list_users_admin(
     client: AsyncClient,
     admin_user: dict,
+    auth: _AuthOverrider,
 ) -> None:
-    p1, p2, p3 = _mock_role(_admin_session(admin_user))
-    with p1, p2, p3:
+    with auth(admin_user["user_id"], "admin"):
         resp = await client.get("/api/admin/users/json")
     assert resp.status_code == 200
     users = resp.json()
@@ -65,12 +35,24 @@ async def test_list_users_admin(
     assert all("role" in u for u in users)
 
 
+@pytest.mark.usefixtures("seed_data")
+async def test_list_users_maintainer(
+    client: AsyncClient,
+    maintainer_user: dict,
+    auth: _AuthOverrider,
+) -> None:
+    with auth(maintainer_user["user_id"], "maintainer"):
+        resp = await client.get("/api/admin/users/json")
+    assert resp.status_code == 200
+    assert len(resp.json()) >= 2
+
+
 async def test_list_users_contributor_forbidden(
     client: AsyncClient,
     seed_data: dict,
+    auth: _AuthOverrider,
 ) -> None:
-    p1, p2, p3 = _mock_role(_contributor_session(seed_data))
-    with p1, p2, p3:
+    with auth(seed_data["user_id"], "contributor"):
         resp = await client.get("/api/admin/users/json")
     assert resp.status_code == 403
 
@@ -80,17 +62,17 @@ async def test_list_users_anonymous_unauthorized(client: AsyncClient) -> None:
     assert resp.status_code == 401
 
 
-# -- PATCH /api/admin/users/{user_id}/role -----------------------------------
+# -- PATCH /api/admin/users/{user_id}/role (admin only) ----------------------
 
 
 async def test_update_role_admin(
     client: AsyncClient,
     seed_data: dict,
     admin_user: dict,
+    auth: _AuthOverrider,
 ) -> None:
     target_uid = seed_data["user_id"]
-    p1, p2, p3 = _mock_role(_admin_session(admin_user))
-    with p1, p2, p3:
+    with auth(admin_user["user_id"], "admin"):
         resp = await client.patch(
             f"/api/admin/users/{target_uid}/role",
             json={"role": "maintainer"},
@@ -105,16 +87,15 @@ async def test_update_role_creates_audit_log(
     client: AsyncClient,
     seed_data: dict,
     admin_user: dict,
+    auth: _AuthOverrider,
 ) -> None:
     target_uid = seed_data["user_id"]
-    p1, p2, p3 = _mock_role(_admin_session(admin_user))
-    with p1, p2, p3:
+    with auth(admin_user["user_id"], "admin"):
         await client.patch(
             f"/api/admin/users/{target_uid}/role",
             json={"role": "admin"},
         )
-
-    resp = await client.get("/api/activity/json", params={"user_id": admin_user["user_id"]})
+        resp = await client.get("/api/activity/json", params={"user_id": admin_user["user_id"]})
     data = resp.json()
     role_changes = [e for e in data["items"] if e["action"]["type"] == "role_change"]
     assert len(role_changes) == 1
@@ -125,9 +106,23 @@ async def test_update_role_creates_audit_log(
 async def test_update_role_contributor_forbidden(
     client: AsyncClient,
     seed_data: dict,
+    auth: _AuthOverrider,
 ) -> None:
-    p1, p2, p3 = _mock_role(_contributor_session(seed_data))
-    with p1, p2, p3:
+    with auth(seed_data["user_id"], "contributor"):
+        resp = await client.patch(
+            f"/api/admin/users/{seed_data['user_id']}/role",
+            json={"role": "admin"},
+        )
+    assert resp.status_code == 403
+
+
+async def test_update_role_maintainer_forbidden(
+    client: AsyncClient,
+    seed_data: dict,
+    maintainer_user: dict,
+    auth: _AuthOverrider,
+) -> None:
+    with auth(maintainer_user["user_id"], "maintainer"):
         resp = await client.patch(
             f"/api/admin/users/{seed_data['user_id']}/role",
             json={"role": "admin"},
@@ -138,9 +133,9 @@ async def test_update_role_contributor_forbidden(
 async def test_update_role_user_not_found(
     client: AsyncClient,
     admin_user: dict,
+    auth: _AuthOverrider,
 ) -> None:
-    p1, p2, p3 = _mock_role(_admin_session(admin_user))
-    with p1, p2, p3:
+    with auth(admin_user["user_id"], "admin"):
         resp = await client.patch(
             "/api/admin/users/99999/role",
             json={"role": "maintainer"},
@@ -152,9 +147,9 @@ async def test_update_role_invalid_value(
     client: AsyncClient,
     seed_data: dict,
     admin_user: dict,
+    auth: _AuthOverrider,
 ) -> None:
-    p1, p2, p3 = _mock_role(_admin_session(admin_user))
-    with p1, p2, p3:
+    with auth(admin_user["user_id"], "admin"):
         resp = await client.patch(
             f"/api/admin/users/{seed_data['user_id']}/role",
             json={"role": "superadmin"},
@@ -162,16 +157,16 @@ async def test_update_role_invalid_value(
     assert resp.status_code == 422
 
 
-# -- GET /admin/users  (HTML) -----------------------------------------------
+# -- GET /admin/users (HTML, admin only) ------------------------------------
 
 
 @pytest.mark.usefixtures("seed_data")
 async def test_admin_page_renders_for_admin(
     client: AsyncClient,
     admin_user: dict,
+    auth: _AuthOverrider,
 ) -> None:
-    p1, p2, p3 = _mock_role(_admin_session(admin_user))
-    with p1, p2, p3:
+    with auth(admin_user["user_id"], "admin"):
         resp = await client.get("/admin/users")
     assert resp.status_code == 200
     assert "User Management" in resp.text
@@ -187,9 +182,9 @@ async def test_admin_page_renders_for_admin(
 async def test_admin_page_forbidden_for_contributor(
     client: AsyncClient,
     seed_data: dict,
+    auth: _AuthOverrider,
 ) -> None:
-    p1, p2, p3 = _mock_role(_contributor_session(seed_data))
-    with p1, p2, p3:
+    with auth(seed_data["user_id"], "contributor"):
         resp = await client.get("/admin/users")
     assert resp.status_code == 403
 
@@ -210,15 +205,15 @@ async def test_new_user_defaults_to_contributor(session: AsyncSession) -> None:
     assert user.role == "contributor"
 
 
-# -- GET /api/admin  (token status) -----------------------------------------
+# -- GET /api/admin/json (token status, admin only) -------------------------
 
 
 async def test_admin_status_no_token(
     client: AsyncClient,
     admin_user: dict,
+    auth: _AuthOverrider,
 ) -> None:
-    p1, p2, p3 = _mock_role(_admin_session(admin_user))
-    with p1, p2, p3:
+    with auth(admin_user["user_id"], "admin"):
         resp = await client.get("/api/admin/json")
     assert resp.status_code == 200
     assert resp.json() == {"has_token": False}
@@ -228,6 +223,7 @@ async def test_admin_status_with_token(
     client: AsyncClient,
     admin_user: dict,
     session: AsyncSession,
+    auth: _AuthOverrider,
 ) -> None:
     from sqlalchemy import select as sa_select  # noqa: PLC0415
 
@@ -236,8 +232,7 @@ async def test_admin_status_with_token(
     user.github_token_encrypted = encrypt_token("ghp_test123")
     await session.commit()
 
-    p1, p2, p3 = _mock_role(_admin_session(admin_user))
-    with p1, p2, p3:
+    with auth(admin_user["user_id"], "admin"):
         resp = await client.get("/api/admin/json")
     assert resp.status_code == 200
     assert resp.json() == {"has_token": True}
@@ -251,22 +246,22 @@ async def test_admin_status_anonymous(client: AsyncClient) -> None:
 async def test_admin_status_contributor_forbidden(
     client: AsyncClient,
     seed_data: dict,
+    auth: _AuthOverrider,
 ) -> None:
-    p1, p2, p3 = _mock_role(_contributor_session(seed_data))
-    with p1, p2, p3:
+    with auth(seed_data["user_id"], "contributor"):
         resp = await client.get("/api/admin/json")
     assert resp.status_code == 403
 
 
-# -- PUT /api/admin  (set token) --------------------------------------------
+# -- PUT /api/admin (set token, admin only) ---------------------------------
 
 
 async def test_put_admin_sets_token(
     client: AsyncClient,
     admin_user: dict,
+    auth: _AuthOverrider,
 ) -> None:
-    p1, p2, p3 = _mock_role(_admin_session(admin_user))
-    with p1, p2, p3:
+    with auth(admin_user["user_id"], "admin"):
         resp = await client.put("/api/admin", json={"token": "ghp_newtoken123"})
     assert resp.status_code == 200
     assert resp.json() == {"has_token": True}
@@ -275,14 +270,14 @@ async def test_put_admin_sets_token(
 async def test_put_admin_never_returns_plaintext(
     client: AsyncClient,
     admin_user: dict,
+    auth: _AuthOverrider,
 ) -> None:
     token = "ghp_supersecret999"
-    p1, p2, p3 = _mock_role(_admin_session(admin_user))
-    with p1, p2, p3:
+    with auth(admin_user["user_id"], "admin"):
         resp = await client.put("/api/admin", json={"token": token})
     assert token not in resp.text
 
-    with p1, p2, p3:
+    with auth(admin_user["user_id"], "admin"):
         status_resp = await client.get("/api/admin/json")
     assert token not in status_resp.text
 
@@ -290,12 +285,11 @@ async def test_put_admin_never_returns_plaintext(
 async def test_put_admin_creates_audit_log(
     client: AsyncClient,
     admin_user: dict,
+    auth: _AuthOverrider,
 ) -> None:
-    p1, p2, p3 = _mock_role(_admin_session(admin_user))
-    with p1, p2, p3:
+    with auth(admin_user["user_id"], "admin"):
         await client.put("/api/admin", json={"token": "ghp_audit"})
-
-    resp = await client.get("/api/activity/json", params={"user_id": admin_user["user_id"]})
+        resp = await client.get("/api/activity/json", params={"user_id": admin_user["user_id"]})
     data = resp.json()
     token_updates = [e for e in data["items"] if e["action"]["type"] == "token_update"]
     assert len(token_updates) == 1
@@ -309,22 +303,22 @@ async def test_put_admin_anonymous(client: AsyncClient) -> None:
 async def test_put_admin_contributor_forbidden(
     client: AsyncClient,
     seed_data: dict,
+    auth: _AuthOverrider,
 ) -> None:
-    p1, p2, p3 = _mock_role(_contributor_session(seed_data))
-    with p1, p2, p3:
+    with auth(seed_data["user_id"], "contributor"):
         resp = await client.put("/api/admin", json={"token": "ghp_x"})
     assert resp.status_code == 403
 
 
-# -- POST /api/admin/fetch --------------------------------------------------
+# -- POST /api/admin/fetch (maintainer+) ------------------------------------
 
 
 async def test_fetch_no_token_returns_400(
     client: AsyncClient,
     admin_user: dict,
+    auth: _AuthOverrider,
 ) -> None:
-    p1, p2, p3 = _mock_role(_admin_session(admin_user))
-    with p1, p2, p3:
+    with auth(admin_user["user_id"], "admin"):
         resp = await client.post(
             "/api/admin/fetch",
             json={"org": "acme", "repo": "widgets", "type": "issues"},
@@ -336,14 +330,13 @@ async def test_fetch_no_token_returns_400(
 async def test_fetch_with_mocked_github(
     client: AsyncClient,
     admin_user: dict,
+    auth: _AuthOverrider,
 ) -> None:
-    p1, p2, p3 = _mock_role(_admin_session(admin_user))
-
-    with p1, p2, p3:
+    with auth(admin_user["user_id"], "admin"):
         await client.put("/api/admin", json={"token": "ghp_mock"})
 
     mock_fetch = AsyncMock(return_value=(5, 0))
-    with p1, p2, p3, patch("app.routes.fetch_and_store", mock_fetch):
+    with auth(admin_user["user_id"], "admin"), patch("app.routes.fetch_and_store", mock_fetch):
         resp = await client.post(
             "/api/admin/fetch",
             json={"org": "acme", "repo": "widgets", "type": "issues", "labels": "bug"},
@@ -364,6 +357,32 @@ async def test_fetch_with_mocked_github(
     assert call_kwargs["mode"] == "merge"
 
 
+async def test_fetch_maintainer_can_fetch(
+    client: AsyncClient,
+    admin_user: dict,
+    maintainer_user: dict,
+    auth: _AuthOverrider,
+) -> None:
+    """Maintainers can trigger a fetch using any stored GitHub token."""
+    with auth(admin_user["user_id"], "admin"):
+        await client.put("/api/admin", json={"token": "ghp_mock"})
+
+    mock_fetch = AsyncMock(return_value=(3, 0))
+    with (
+        auth(maintainer_user["user_id"], "maintainer"),
+        patch(
+            "app.routes.fetch_and_store",
+            mock_fetch,
+        ),
+    ):
+        resp = await client.post(
+            "/api/admin/fetch",
+            json={"org": "acme", "repo": "widgets", "type": "issues"},
+        )
+    assert resp.status_code == 200
+    assert resp.json()["upserted"] == 3
+
+
 async def test_fetch_anonymous(client: AsyncClient) -> None:
     resp = await client.post(
         "/api/admin/fetch",
@@ -375,9 +394,9 @@ async def test_fetch_anonymous(client: AsyncClient) -> None:
 async def test_fetch_contributor_forbidden(
     client: AsyncClient,
     seed_data: dict,
+    auth: _AuthOverrider,
 ) -> None:
-    p1, p2, p3 = _mock_role(_contributor_session(seed_data))
-    with p1, p2, p3:
+    with auth(seed_data["user_id"], "contributor"):
         resp = await client.post(
             "/api/admin/fetch",
             json={"org": "acme", "repo": "widgets", "type": "issues"},
@@ -388,14 +407,13 @@ async def test_fetch_contributor_forbidden(
 async def test_fetch_mode_forwarded_replace(
     client: AsyncClient,
     admin_user: dict,
+    auth: _AuthOverrider,
 ) -> None:
-    p1, p2, p3 = _mock_role(_admin_session(admin_user))
-
-    with p1, p2, p3:
+    with auth(admin_user["user_id"], "admin"):
         await client.put("/api/admin", json={"token": "ghp_mock"})
 
     mock_fetch = AsyncMock(return_value=(3, 2))
-    with p1, p2, p3, patch("app.routes.fetch_and_store", mock_fetch):
+    with auth(admin_user["user_id"], "admin"), patch("app.routes.fetch_and_store", mock_fetch):
         resp = await client.post(
             "/api/admin/fetch",
             json={"org": "acme", "repo": "widgets", "type": "issues", "mode": "replace"},
@@ -412,14 +430,13 @@ async def test_fetch_mode_forwarded_replace(
 async def test_fetch_mode_forwarded_subtract(
     client: AsyncClient,
     admin_user: dict,
+    auth: _AuthOverrider,
 ) -> None:
-    p1, p2, p3 = _mock_role(_admin_session(admin_user))
-
-    with p1, p2, p3:
+    with auth(admin_user["user_id"], "admin"):
         await client.put("/api/admin", json={"token": "ghp_mock"})
 
     mock_fetch = AsyncMock(return_value=(0, 4))
-    with p1, p2, p3, patch("app.routes.fetch_and_store", mock_fetch):
+    with auth(admin_user["user_id"], "admin"), patch("app.routes.fetch_and_store", mock_fetch):
         resp = await client.post(
             "/api/admin/fetch",
             json={"org": "acme", "repo": "widgets", "type": "issues", "mode": "subtract"},
@@ -436,15 +453,14 @@ async def test_fetch_mode_forwarded_subtract(
 async def test_fetch_default_mode_is_merge(
     client: AsyncClient,
     admin_user: dict,
+    auth: _AuthOverrider,
 ) -> None:
     """When mode is omitted from the request body, it defaults to merge."""
-    p1, p2, p3 = _mock_role(_admin_session(admin_user))
-
-    with p1, p2, p3:
+    with auth(admin_user["user_id"], "admin"):
         await client.put("/api/admin", json={"token": "ghp_mock"})
 
     mock_fetch = AsyncMock(return_value=(1, 0))
-    with p1, p2, p3, patch("app.routes.fetch_and_store", mock_fetch):
+    with auth(admin_user["user_id"], "admin"), patch("app.routes.fetch_and_store", mock_fetch):
         resp = await client.post(
             "/api/admin/fetch",
             json={"org": "acme", "repo": "widgets", "type": "issues"},
@@ -458,9 +474,9 @@ async def test_fetch_default_mode_is_merge(
 async def test_fetch_invalid_mode_returns_422(
     client: AsyncClient,
     admin_user: dict,
+    auth: _AuthOverrider,
 ) -> None:
-    p1, p2, p3 = _mock_role(_admin_session(admin_user))
-    with p1, p2, p3:
+    with auth(admin_user["user_id"], "admin"):
         resp = await client.post(
             "/api/admin/fetch",
             json={"org": "acme", "repo": "widgets", "type": "issues", "mode": "nuke"},
@@ -468,16 +484,16 @@ async def test_fetch_invalid_mode_returns_422(
     assert resp.status_code == 422
 
 
-# -- POST /api/admin/users (create user) -----------------------------------
+# -- POST /api/admin/users (create user, admin only) -----------------------
 
 
 async def test_create_user_as_admin(
     client: AsyncClient,
     admin_user: dict,
     session: AsyncSession,
+    auth: _AuthOverrider,
 ) -> None:
-    p1, p2, p3 = _mock_role(_admin_session(admin_user))
-    with p1, p2, p3:
+    with auth(admin_user["user_id"], "admin"):
         resp = await client.post(
             "/api/admin/users",
             json={"username": "newuser", "role": "maintainer", "password": "strong-pw-123"},
@@ -497,9 +513,9 @@ async def test_create_user_as_admin(
 async def test_create_user_duplicate_username(
     client: AsyncClient,
     admin_user: dict,
+    auth: _AuthOverrider,
 ) -> None:
-    p1, p2, p3 = _mock_role(_admin_session(admin_user))
-    with p1, p2, p3:
+    with auth(admin_user["user_id"], "admin"):
         resp = await client.post(
             "/api/admin/users",
             json={"username": "testuser", "password": "strong-pw-123"},
@@ -510,9 +526,9 @@ async def test_create_user_duplicate_username(
 async def test_create_user_short_password(
     client: AsyncClient,
     admin_user: dict,
+    auth: _AuthOverrider,
 ) -> None:
-    p1, p2, p3 = _mock_role(_admin_session(admin_user))
-    with p1, p2, p3:
+    with auth(admin_user["user_id"], "admin"):
         resp = await client.post(
             "/api/admin/users",
             json={"username": "shortpw", "password": "abc"},
@@ -523,11 +539,67 @@ async def test_create_user_short_password(
 async def test_create_user_contributor_forbidden(
     client: AsyncClient,
     seed_data: dict,
+    auth: _AuthOverrider,
 ) -> None:
-    p1, p2, p3 = _mock_role(_contributor_session(seed_data))
-    with p1, p2, p3:
+    with auth(seed_data["user_id"], "contributor"):
         resp = await client.post(
             "/api/admin/users",
             json={"username": "nope", "password": "strong-pw-123"},
         )
     assert resp.status_code == 403
+
+
+# -- DELETE /api/admin/users/{user_id} (admin only) -------------------------
+
+
+async def test_delete_user_as_admin(
+    client: AsyncClient,
+    seed_data: dict,
+    admin_user: dict,
+    session: AsyncSession,
+    auth: _AuthOverrider,
+) -> None:
+    target_uid = seed_data["user_id"]
+    with auth(admin_user["user_id"], "admin"):
+        resp = await client.delete(f"/api/admin/users/{target_uid}")
+    assert resp.status_code == 204
+
+    from sqlalchemy import select  # noqa: PLC0415
+
+    row = (await session.execute(select(User).where(User.id == target_uid))).scalar_one_or_none()
+    assert row is None
+
+
+async def test_delete_user_self_forbidden(
+    client: AsyncClient,
+    admin_user: dict,
+    auth: _AuthOverrider,
+) -> None:
+    with auth(admin_user["user_id"], "admin"):
+        resp = await client.delete(f"/api/admin/users/{admin_user['user_id']}")
+    assert resp.status_code == 403
+
+
+async def test_delete_user_not_found(
+    client: AsyncClient,
+    admin_user: dict,
+    auth: _AuthOverrider,
+) -> None:
+    with auth(admin_user["user_id"], "admin"):
+        resp = await client.delete("/api/admin/users/99999")
+    assert resp.status_code == 404
+
+
+async def test_delete_user_contributor_forbidden(
+    client: AsyncClient,
+    seed_data: dict,
+    auth: _AuthOverrider,
+) -> None:
+    with auth(seed_data["user_id"], "contributor"):
+        resp = await client.delete(f"/api/admin/users/{seed_data['user_id']}")
+    assert resp.status_code == 403
+
+
+async def test_delete_user_anonymous(client: AsyncClient) -> None:
+    resp = await client.delete("/api/admin/users/1")
+    assert resp.status_code == 401

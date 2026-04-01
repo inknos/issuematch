@@ -6,6 +6,8 @@ from unittest.mock import patch
 if TYPE_CHECKING:
     from httpx import AsyncClient
 
+    from tests.conftest import _AuthOverrider
+
 # ---------------------------------------------------------------------------
 # Index (/)
 # ---------------------------------------------------------------------------
@@ -45,18 +47,20 @@ async def test_vote_shows_done_when_db_empty(client: AsyncClient) -> None:
 async def test_vote_redirects_to_least_voted_issue(
     client: AsyncClient,
     seed_data: dict,
+    auth: _AuthOverrider,
 ) -> None:
     """After all issues have votes, /vote still redirects to the least-voted one."""
     uid = seed_data["user_id"]
 
-    await client.post(
-        f"/api/users/{uid}/votes",
-        json={"issue_id": seed_data["issue_id"], "ranking": 1},
-    )
-    await client.post(
-        f"/api/users/{uid}/votes",
-        json={"issue_id": seed_data["issue_id_2"], "ranking": 2},
-    )
+    with auth(uid, "contributor"):
+        await client.post(
+            f"/api/users/{uid}/votes",
+            json={"issue_id": seed_data["issue_id"], "ranking": 1},
+        )
+        await client.post(
+            f"/api/users/{uid}/votes",
+            json={"issue_id": seed_data["issue_id_2"], "ranking": 2},
+        )
 
     with patch("app.routes.current_user_id", return_value=uid):
         resp = await client.get("/vote", follow_redirects=False)
@@ -88,12 +92,17 @@ async def test_vote_page_404_for_missing_issue(client: AsyncClient, seed_data: d
     assert resp.status_code == 404
 
 
-async def test_vote_page_shows_existing_ranking(client: AsyncClient, seed_data: dict) -> None:
+async def test_vote_page_shows_existing_ranking(
+    client: AsyncClient,
+    seed_data: dict,
+    auth: _AuthOverrider,
+) -> None:
     uid = seed_data["user_id"]
-    await client.post(
-        f"/api/users/{uid}/votes",
-        json={"issue_id": seed_data["issue_id"], "ranking": 3},
-    )
+    with auth(uid, "contributor"):
+        await client.post(
+            f"/api/users/{uid}/votes",
+            json={"issue_id": seed_data["issue_id"], "ranking": 3},
+        )
 
     with patch("app.routes.current_user_id", return_value=uid):
         resp = await client.get("/vote/acme/widgets/issue/1")
@@ -128,12 +137,17 @@ async def test_submit_vote_creates_and_redirects(client: AsyncClient, seed_data:
     assert "/vote/" in location or "/vote/done" in location
 
 
-async def test_submit_vote_updates_existing(client: AsyncClient, seed_data: dict) -> None:
+async def test_submit_vote_updates_existing(
+    client: AsyncClient,
+    seed_data: dict,
+    auth: _AuthOverrider,
+) -> None:
     uid = seed_data["user_id"]
-    await client.post(
-        f"/api/users/{uid}/votes",
-        json={"issue_id": seed_data["issue_id"], "ranking": 1},
-    )
+    with auth(uid, "contributor"):
+        await client.post(
+            f"/api/users/{uid}/votes",
+            json={"issue_id": seed_data["issue_id"], "ranking": 1},
+        )
 
     with patch("app.routes.current_user_id", return_value=uid):
         resp = await client.post(
@@ -147,13 +161,15 @@ async def test_submit_vote_updates_existing(client: AsyncClient, seed_data: dict
 async def test_submit_vote_redirects_to_least_voted(
     client: AsyncClient,
     seed_data: dict,
+    auth: _AuthOverrider,
 ) -> None:
     """After voting on every issue, submit still redirects to a (least-voted) issue."""
     uid = seed_data["user_id"]
-    await client.post(
-        f"/api/users/{uid}/votes",
-        json={"issue_id": seed_data["issue_id"], "ranking": 1},
-    )
+    with auth(uid, "contributor"):
+        await client.post(
+            f"/api/users/{uid}/votes",
+            json={"issue_id": seed_data["issue_id"], "ranking": 1},
+        )
 
     with patch("app.routes.current_user_id", return_value=uid):
         resp = await client.post(
@@ -235,12 +251,17 @@ async def test_activity_page_renders_empty(client: AsyncClient, seed_data: dict)
     assert "No activity yet" in resp.text
 
 
-async def test_activity_page_shows_entries(client: AsyncClient, seed_data: dict) -> None:
+async def test_activity_page_shows_entries(
+    client: AsyncClient,
+    seed_data: dict,
+    auth: _AuthOverrider,
+) -> None:
     uid = seed_data["user_id"]
-    await client.post(
-        f"/api/users/{uid}/votes",
-        json={"issue_id": seed_data["issue_id"], "ranking": 2},
-    )
+    with auth(uid, "contributor"):
+        await client.post(
+            f"/api/users/{uid}/votes",
+            json={"issue_id": seed_data["issue_id"], "ranking": 2},
+        )
 
     with patch("app.routes.current_user_id", return_value=uid):
         resp = await client.get("/activity")
@@ -249,16 +270,21 @@ async def test_activity_page_shows_entries(client: AsyncClient, seed_data: dict)
     assert seed_data["issue_id"] in resp.text
 
 
-async def test_activity_page_shows_vote_update(client: AsyncClient, seed_data: dict) -> None:
+async def test_activity_page_shows_vote_update(
+    client: AsyncClient,
+    seed_data: dict,
+    auth: _AuthOverrider,
+) -> None:
     uid = seed_data["user_id"]
-    await client.post(
-        f"/api/users/{uid}/votes",
-        json={"issue_id": seed_data["issue_id"], "ranking": 1},
-    )
-    await client.put(
-        f"/api/users/{uid}/votes",
-        json={"issue_id": seed_data["issue_id"], "ranking": -2},
-    )
+    with auth(uid, "contributor"):
+        await client.post(
+            f"/api/users/{uid}/votes",
+            json={"issue_id": seed_data["issue_id"], "ranking": 1},
+        )
+        await client.put(
+            f"/api/users/{uid}/votes",
+            json={"issue_id": seed_data["issue_id"], "ranking": -2},
+        )
 
     with patch("app.routes.current_user_id", return_value=uid):
         resp = await client.get("/activity")
@@ -274,12 +300,14 @@ async def test_activity_page_shows_vote_update(client: AsyncClient, seed_data: d
 async def test_results_page_shows_delete_button_for_voted_issue(
     client: AsyncClient,
     seed_data: dict,
+    auth: _AuthOverrider,
 ) -> None:
     uid = seed_data["user_id"]
-    create_resp = await client.post(
-        f"/api/users/{uid}/votes",
-        json={"issue_id": seed_data["issue_id"], "ranking": 2},
-    )
+    with auth(uid, "contributor"):
+        create_resp = await client.post(
+            f"/api/users/{uid}/votes",
+            json={"issue_id": seed_data["issue_id"], "ranking": 2},
+        )
     vote_id = create_resp.json()["id"]
 
     with patch("app.routes.current_user_id", return_value=uid):

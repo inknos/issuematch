@@ -147,6 +147,29 @@ class PaginatedIssues(BaseModel):
     per_page: int
 
 
+class ResultOut(BaseModel):
+    """Aggregated vote result for a single issue."""
+
+    issue_id: str
+    org: str
+    repo: str
+    number: int
+    type: str
+    title: str
+    url: str
+    avg_ranking: float | None
+    vote_count: int
+
+
+class PaginatedResults(BaseModel):
+    """Paginated envelope for aggregated vote results."""
+
+    items: list[ResultOut]
+    total: int
+    page: int
+    per_page: int
+
+
 # ---------------------------------------------------------------------------
 # Password & API-token schemas
 # ---------------------------------------------------------------------------

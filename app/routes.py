@@ -9,7 +9,15 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import delete, func, select
 
-from app.auth import ROLE_HIERARCHY, current_user_id, current_user_role, require_role
+from app.auth import (
+    ROLE_HIERARCHY,
+    AdminUid,
+    ContributorUid,
+    CurrentRole,
+    MaintainerUid,
+    current_user_id,
+    current_user_role,
+)
 from app.crypto import (
     DUMMY_HASH,
     decrypt_token,
@@ -37,6 +45,7 @@ from app.schemas import (
     IssueOut,
     PaginatedAuditLog,
     PaginatedIssues,
+    PaginatedResults,
     PaginatedVotes,
     PasswordUpdate,
     RoleUpdate,
@@ -55,13 +64,6 @@ templates = Jinja2Templates(directory="app/templates")
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-def _require_login(request: Request) -> int:
-    uid = current_user_id(request)
-    if uid is None:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    return uid
 
 
 def _issue_vote_url(issue: Issue) -> str:
@@ -86,6 +88,8 @@ ACTION_LABELS: dict[str, tuple[str, str]] = {
     "password_reset": ("Password Reset", "bg-warning text-dark"),
     "api_token_create": ("API Token Created", "bg-success"),
     "api_token_revoke": ("API Token Revoked", "bg-danger"),
+    "user_created": ("User Created", "bg-success"),
+    "user_deleted": ("User Deleted", "bg-danger"),
 }
 
 
@@ -247,12 +251,20 @@ async def activity_page(
     per_page: int = 20,
     action_type: str | None = None,
 ) -> HTMLResponse:
-    """Render the paginated activity log for the current user."""
+    """Render the paginated activity log.
+
+    Maintainer+ sees all users' activity; contributors see only their own.
+    """
     uid = current_user_id(request)
     if uid is None:
         return RedirectResponse(url="/login", status_code=303)  # type: ignore[return-value]
 
-    base = select(AuditLog).where(AuditLog.user_id == uid)
+    role = current_user_role(request) or "contributor"
+    is_maintainer = ROLE_HIERARCHY.get(role, 0) >= ROLE_HIERARCHY["maintainer"]
+
+    base = select(AuditLog)
+    if not is_maintainer:
+        base = base.where(AuditLog.user_id == uid)
 
     if action_type:
         base = base.where(AuditLog.action["type"].as_string() == action_type.lower())
@@ -326,7 +338,7 @@ async def results_page(
 
 
 # ---------------------------------------------------------------------------
-# JSON API
+# JSON API — public
 # ---------------------------------------------------------------------------
 
 
@@ -345,7 +357,7 @@ async def list_issues(
     page: int = 1,
     per_page: int = 20,
 ) -> dict:
-    """Return a paginated, filterable list of stored issues."""
+    """Return a paginated, filterable list of stored issues (public)."""
     base = select(Issue)
 
     if org is not None:
@@ -382,7 +394,7 @@ async def get_issue(
     number: int,
     session: SessionDep,
 ) -> Issue:
-    """Return a single stored issue by its components."""
+    """Return a single stored issue by its components (public)."""
     issue_id = f"{org}/{repo}/{item_type}/{number}"
     result = await session.execute(select(Issue).where(Issue.id == issue_id))
     issue = result.scalar_one_or_none()
@@ -392,12 +404,42 @@ async def get_issue(
 
 
 @router.get(
+    "/api/results/json",
+    response_model=PaginatedResults,
+    tags=["api"],
+    operation_id="list_results",
+)
+async def list_results(
+    session: SessionDep,
+    sort_by: str = "avg_ranking",
+    order: str = "desc",
+    page: int = 1,
+    per_page: int = 20,
+) -> dict:
+    """Return paginated average rankings per issue (public)."""
+    rows, total = await _results_query(
+        session,
+        sort_by=sort_by,
+        order=order,
+        page=page,
+        per_page=per_page,
+    )
+    return {"items": rows, "total": total, "page": page, "per_page": per_page}
+
+
+# ---------------------------------------------------------------------------
+# JSON API — contributor+
+# ---------------------------------------------------------------------------
+
+
+@router.get(
     "/api/votes/json",
     response_model=PaginatedVotes,
     tags=["api"],
     operation_id="list_votes",
 )
 async def list_votes(
+    caller_uid: ContributorUid,  # noqa: ARG001
     session: SessionDep,
     issue_id: str | None = None,
     org: str | None = None,
@@ -406,7 +448,7 @@ async def list_votes(
     page: int = 1,
     per_page: int = 20,
 ) -> dict:
-    """Return a paginated, filterable list of votes."""
+    """Return a paginated, filterable list of votes (contributor+)."""
     base = select(Vote)
 
     needs_issue_join = org is not None or repo is not None
@@ -439,11 +481,15 @@ async def list_votes(
     operation_id="get_user_votes",
 )
 async def get_user_votes(
+    caller_uid: ContributorUid,
+    caller_role: CurrentRole,
     user_id: int,
     session: SessionDep,
     issue_id: str | None = None,
 ) -> list[Vote]:
-    """Return all votes for a user, optionally filtered by issue."""
+    """Return all votes for a user (own for contributor, any for maintainer+)."""
+    if caller_uid != user_id and ROLE_HIERARCHY.get(caller_role, 0) < ROLE_HIERARCHY["maintainer"]:
+        raise HTTPException(status_code=403, detail="Cannot access other users' data")
     stmt = select(Vote).where(Vote.user_id == user_id)
     if issue_id is not None:
         stmt = stmt.where(Vote.issue_id == issue_id)
@@ -459,11 +505,14 @@ async def get_user_votes(
     operation_id="create_vote",
 )
 async def create_user_vote(
+    caller_uid: ContributorUid,
     user_id: int,
     body: VoteCreate,
     session: SessionDep,
 ) -> Vote:
-    """Create a vote for the given user; 409 if a vote already exists."""
+    """Create a vote for the given user; 409 if a vote already exists (contributor+, own only)."""
+    if caller_uid != user_id:
+        raise HTTPException(status_code=403, detail="Cannot vote as another user")
     existing = await session.execute(
         select(Vote).where(Vote.user_id == user_id, Vote.issue_id == body.issue_id),
     )
@@ -488,11 +537,14 @@ async def create_user_vote(
     operation_id="update_vote",
 )
 async def update_user_vote(
+    caller_uid: ContributorUid,
     user_id: int,
     body: VoteUpdate,
     session: SessionDep,
 ) -> Vote:
-    """Update the ranking of an existing vote; 404 if not found."""
+    """Update the ranking of an existing vote; 404 if not found (contributor+, own only)."""
+    if caller_uid != user_id:
+        raise HTTPException(status_code=403, detail="Cannot vote as another user")
     result = await session.execute(
         select(Vote).where(Vote.user_id == user_id, Vote.issue_id == body.issue_id),
     )
@@ -523,11 +575,14 @@ async def update_user_vote(
     operation_id="delete_vote",
 )
 async def delete_user_vote(
+    caller_uid: ContributorUid,
     user_id: int,
     vote_id: int,
     session: SessionDep,
 ) -> Response:
-    """Delete a specific vote owned by the given user; 404 if not found."""
+    """Delete a specific vote owned by the given user; 404 if not found (contributor+, own only)."""
+    if caller_uid != user_id:
+        raise HTTPException(status_code=403, detail="Cannot vote as another user")
     result = await session.execute(
         select(Vote).where(Vote.id == vote_id, Vote.user_id == user_id),
     )
@@ -560,12 +615,13 @@ async def delete_user_vote(
     operation_id="list_activity",
 )
 async def list_activity(
+    caller_uid: MaintainerUid,  # noqa: ARG001
     session: SessionDep,
     user_id: int | None = None,
     page: int = 1,
     per_page: int = 20,
 ) -> dict:
-    """Return a paginated, optionally user-filtered activity log."""
+    """Return a paginated, optionally user-filtered activity log (maintainer+)."""
     base = select(AuditLog)
     if user_id is not None:
         base = base.where(AuditLog.user_id == user_id)
@@ -589,10 +645,14 @@ async def list_activity(
     operation_id="get_user_activity",
 )
 async def get_user_activity(
+    caller_uid: ContributorUid,
+    caller_role: CurrentRole,
     user_id: int,
     session: SessionDep,
 ) -> list[AuditLog]:
-    """Return all activity-log entries for a user, newest first."""
+    """Return activity for a user (own for contributor, any for maintainer+)."""
+    if caller_uid != user_id and ROLE_HIERARCHY.get(caller_role, 0) < ROLE_HIERARCHY["maintainer"]:
+        raise HTTPException(status_code=403, detail="Cannot access other users' data")
     result = await session.execute(
         select(AuditLog).where(AuditLog.user_id == user_id).order_by(AuditLog.timestamp.desc()),
     )
@@ -600,7 +660,7 @@ async def get_user_activity(
 
 
 # ---------------------------------------------------------------------------
-# Admin API
+# Admin / maintainer API
 # ---------------------------------------------------------------------------
 
 
@@ -611,11 +671,10 @@ async def get_user_activity(
     operation_id="list_users",
 )
 async def list_users(
-    request: Request,
+    caller_uid: MaintainerUid,  # noqa: ARG001
     session: SessionDep,
 ) -> list[User]:
-    """Return all users with their roles (admin only)."""
-    require_role(request, "admin")
+    """Return all users with their roles (maintainer+)."""
     result = await session.execute(select(User).order_by(User.username))
     return list(result.scalars().all())
 
@@ -628,13 +687,11 @@ async def list_users(
     operation_id="create_user",
 )
 async def create_user(
+    admin_uid: AdminUid,
     body: UserCreate,
-    request: Request,
     session: SessionDep,
 ) -> User:
     """Create a new user with a role and password (admin only)."""
-    admin_uid = require_role(request, "admin")
-
     username = body.username.strip()
     if not username:
         raise HTTPException(status_code=400, detail="Username must not be empty")
@@ -662,15 +719,47 @@ async def create_user(
     return user
 
 
+@router.delete(
+    "/api/admin/users/{user_id}",
+    status_code=204,
+    tags=["api"],
+    operation_id="delete_user",
+)
+async def delete_user(
+    admin_uid: AdminUid,
+    user_id: int,
+    session: SessionDep,
+) -> Response:
+    """Delete a user and all their related data (admin only)."""
+    if admin_uid == user_id:
+        raise HTTPException(status_code=403, detail="Cannot delete yourself")
+    result = await session.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    username = user.username
+    await session.execute(delete(ApiToken).where(ApiToken.user_id == user_id))
+    await session.execute(delete(Vote).where(Vote.user_id == user_id))
+    await session.execute(delete(AuditLog).where(AuditLog.user_id == user_id))
+    await session.execute(delete(User).where(User.id == user_id))
+    _log_action(
+        session,
+        admin_uid,
+        {"type": "user_deleted", "target_user_id": user_id, "username": username},
+    )
+    await session.commit()
+    return Response(status_code=204)
+
+
 @router.patch("/api/admin/users/{user_id}/role", response_model=UserOut)
 async def update_user_role(
+    admin_uid: AdminUid,
     user_id: int,
     body: RoleUpdate,
-    request: Request,
     session: SessionDep,
 ) -> User:
     """Change a user's role (admin only)."""
-    admin_uid = require_role(request, "admin")
     result = await session.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if user is None:
@@ -699,11 +788,10 @@ async def update_user_role(
     operation_id="get_admin_status",
 )
 async def admin_status(
-    request: Request,
+    admin_uid: AdminUid,
     session: SessionDep,
 ) -> dict:
-    """Return whether the current admin has a GitHub API token set."""
-    admin_uid = require_role(request, "admin")
+    """Return whether the current admin has a GitHub API token set (admin only)."""
     result = await session.execute(select(User).where(User.id == admin_uid))
     user = result.scalar_one()
     return {"has_token": user.github_token_encrypted is not None}
@@ -716,12 +804,11 @@ async def admin_status(
     operation_id="update_admin_token",
 )
 async def update_admin_token(
+    admin_uid: AdminUid,
     body: AdminTokenUpdate,
-    request: Request,
     session: SessionDep,
 ) -> dict:
-    """Set or replace the admin's GitHub API token (encrypted at rest)."""
-    admin_uid = require_role(request, "admin")
+    """Set or replace the admin's GitHub API token (encrypted at rest, admin only)."""
     result = await session.execute(select(User).where(User.id == admin_uid))
     user = result.scalar_one()
     user.github_token_encrypted = encrypt_token(body.token)
@@ -732,13 +819,12 @@ async def update_admin_token(
 
 @router.put("/api/admin/users/{user_id}/password", tags=["api"], operation_id="reset_user_password")
 async def admin_reset_password(
+    admin_uid: AdminUid,
     user_id: int,
     body: AdminPasswordReset,
-    request: Request,
     session: SessionDep,
 ) -> dict:
     """Set or reset a user's password (admin only)."""
-    admin_uid = require_role(request, "admin")
     result = await session.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if user is None:
@@ -760,18 +846,19 @@ async def admin_reset_password(
     operation_id="fetch_issues",
 )
 async def admin_fetch(
+    caller_uid: MaintainerUid,
     body: FetchRequest,
-    request: Request,
     session: SessionDep,
 ) -> dict:
-    """Fetch issues or PRs from GitHub using the admin's stored token."""
-    admin_uid = require_role(request, "admin")
-    result = await session.execute(select(User).where(User.id == admin_uid))
-    user = result.scalar_one()
-    if user.github_token_encrypted is None:
+    """Fetch issues or PRs from GitHub using a stored token (maintainer+)."""
+    result = await session.execute(
+        select(User).where(User.github_token_encrypted.isnot(None)).limit(1),
+    )
+    token_user = result.scalar_one_or_none()
+    if token_user is None:
         raise HTTPException(status_code=400, detail="No GitHub token configured")
 
-    token = decrypt_token(user.github_token_encrypted)
+    token = decrypt_token(token_user.github_token_encrypted)
     upserted, removed = await fetch_and_store(
         token=token,
         org=body.org,
@@ -783,7 +870,7 @@ async def admin_fetch(
     )
     _log_action(
         session,
-        admin_uid,
+        caller_uid,
         {
             "type": "fetch",
             "org": body.org,
@@ -804,11 +891,11 @@ async def admin_fetch(
 
 @router.get("/admin/users", response_class=HTMLResponse)
 async def admin_users_page(
+    admin_uid: AdminUid,
     request: Request,
     session: SessionDep,
 ) -> HTMLResponse:
     """Render the admin user-management page (admin only)."""
-    admin_uid = require_role(request, "admin")
     result = await session.execute(select(User).order_by(User.username))
     users = list(result.scalars().all())
     admin_result = await session.execute(select(User).where(User.id == admin_uid))
@@ -824,25 +911,25 @@ async def admin_users_page(
 
 
 # ---------------------------------------------------------------------------
-# User page (password + tokens, all authenticated users)
+# User page (password + tokens, all authenticated users — contributor+)
 # ---------------------------------------------------------------------------
 
 
 @router.get("/user", response_class=HTMLResponse)
 async def user_page(
+    caller_uid: ContributorUid,
+    caller_role: CurrentRole,
     request: Request,
     session: SessionDep,
 ) -> HTMLResponse:
     """Render the user account page (password change + API tokens)."""
-    uid = _require_login(request)
-    result = await session.execute(select(User).where(User.id == uid))
+    result = await session.execute(select(User).where(User.id == caller_uid))
     user = result.scalar_one()
     token_result = await session.execute(
-        select(ApiToken).where(ApiToken.user_id == uid).order_by(ApiToken.created_at.desc()),
+        select(ApiToken).where(ApiToken.user_id == caller_uid).order_by(ApiToken.created_at.desc()),
     )
     tokens = list(token_result.scalars().all())
-    user_role = current_user_role(request) or "contributor"
-    role_level = ROLE_HIERARCHY.get(user_role, 1)
+    role_level = ROLE_HIERARCHY.get(caller_role, 1)
     allowed_roles = [r for r, lvl in ROLE_HIERARCHY.items() if lvl <= role_level]
     return templates.TemplateResponse(
         "user.html",
@@ -858,13 +945,12 @@ async def user_page(
 
 @router.put("/api/user/password", tags=["api"], operation_id="change_password")
 async def change_own_password(
+    caller_uid: ContributorUid,
     body: PasswordUpdate,
-    request: Request,
     session: SessionDep,
 ) -> dict:
-    """Change the current user's password (requires current password)."""
-    uid = _require_login(request)
-    result = await session.execute(select(User).where(User.id == uid))
+    """Change the current user's password (requires current password, contributor+)."""
+    result = await session.execute(select(User).where(User.id == caller_uid))
     user = result.scalar_one()
 
     if user.password_hash is None:
@@ -875,13 +961,13 @@ async def change_own_password(
         raise HTTPException(status_code=401, detail="Current password is incorrect")
 
     user.password_hash = hash_password(body.new_password)
-    _log_action(session, uid, {"type": "password_change"})
+    _log_action(session, caller_uid, {"type": "password_change"})
     await session.commit()
     return {"ok": True}
 
 
 # ---------------------------------------------------------------------------
-# API token CRUD (all authenticated users)
+# API token CRUD (contributor+)
 # ---------------------------------------------------------------------------
 
 
@@ -892,13 +978,13 @@ async def change_own_password(
     operation_id="list_tokens",
 )
 async def list_tokens(
-    request: Request,
+    caller_uid: ContributorUid,
+    caller_role: CurrentRole,  # noqa: ARG001
     session: SessionDep,
 ) -> list[ApiToken]:
     """List the current user's API tokens."""
-    uid = _require_login(request)
     result = await session.execute(
-        select(ApiToken).where(ApiToken.user_id == uid).order_by(ApiToken.created_at.desc()),
+        select(ApiToken).where(ApiToken.user_id == caller_uid).order_by(ApiToken.created_at.desc()),
     )
     return list(result.scalars().all())
 
@@ -911,14 +997,13 @@ async def list_tokens(
     operation_id="create_token",
 )
 async def create_token(
+    caller_uid: ContributorUid,
+    caller_role: CurrentRole,
     body: ApiTokenCreate,
-    request: Request,
     session: SessionDep,
 ) -> dict:
-    """Create a new API token. The raw token is returned only once."""
-    uid = _require_login(request)
-    user_role = current_user_role(request) or "contributor"
-    user_level = ROLE_HIERARCHY.get(user_role, 1)
+    """Create a new API token. The raw token is returned only once (contributor+)."""
+    user_level = ROLE_HIERARCHY.get(caller_role, 1)
     requested_level = ROLE_HIERARCHY.get(body.role, 0)
     if requested_level > user_level:
         raise HTTPException(
@@ -928,14 +1013,18 @@ async def create_token(
 
     raw, token_hash, prefix = generate_api_token()
     api_token = ApiToken(
-        user_id=uid,
+        user_id=caller_uid,
         token_hash=token_hash,
         token_prefix=prefix,
         name=body.name,
         role=body.role,
     )
     session.add(api_token)
-    _log_action(session, uid, {"type": "api_token_create", "name": body.name, "role": body.role})
+    _log_action(
+        session,
+        caller_uid,
+        {"type": "api_token_create", "name": body.name, "role": body.role},
+    )
     await session.commit()
     await session.refresh(api_token)
     return {
@@ -952,20 +1041,19 @@ async def create_token(
 
 @router.delete("/api/tokens/{token_id}", status_code=204, tags=["api"], operation_id="revoke_token")
 async def revoke_token(
+    caller_uid: ContributorUid,
     token_id: int,
-    request: Request,
     session: SessionDep,
 ) -> Response:
-    """Revoke (soft-delete) an API token. Only the owner can revoke."""
-    uid = _require_login(request)
+    """Revoke (soft-delete) an API token. Only the owner can revoke (contributor+)."""
     result = await session.execute(
-        select(ApiToken).where(ApiToken.id == token_id, ApiToken.user_id == uid),
+        select(ApiToken).where(ApiToken.id == token_id, ApiToken.user_id == caller_uid),
     )
     api_token = result.scalar_one_or_none()
     if api_token is None:
         raise HTTPException(status_code=404, detail="Token not found")
     api_token.is_active = False
-    _log_action(session, uid, {"type": "api_token_revoke", "token_id": token_id})
+    _log_action(session, caller_uid, {"type": "api_token_revoke", "token_id": token_id})
     await session.commit()
     return Response(status_code=204)
 

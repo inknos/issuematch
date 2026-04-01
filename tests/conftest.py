@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator
+    from collections.abc import AsyncGenerator, Generator
 
+import pytest
 import pytest_asyncio
+from app.auth import get_current_role, get_current_uid
 from app.models import Base, Issue, User
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -46,6 +49,43 @@ async def client() -> AsyncGenerator[AsyncClient, None]:
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         yield c
     app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def auth() -> Generator[_AuthOverrider, None, None]:
+    """Provides a context manager to override auth dependencies for testing.
+
+    Usage::
+
+        with auth(user_id=1, role="admin"):
+            resp = await client.get("/api/admin/users/json")
+    """
+    from app.main import app  # noqa: PLC0415
+
+    overrider = _AuthOverrider(app)
+    yield overrider
+    overrider.clear()
+
+
+class _AuthOverrider:
+    """Helper that manages dependency_overrides for get_current_uid / get_current_role."""
+
+    def __init__(self, app) -> None:  # noqa: ANN001
+        self._app = app
+
+    @contextmanager
+    def __call__(self, user_id: int, role: str) -> Generator[None, None, None]:
+        self._app.dependency_overrides[get_current_uid] = lambda: user_id
+        self._app.dependency_overrides[get_current_role] = lambda: role
+        try:
+            yield
+        finally:
+            self._app.dependency_overrides.pop(get_current_uid, None)
+            self._app.dependency_overrides.pop(get_current_role, None)
+
+    def clear(self) -> None:
+        self._app.dependency_overrides.pop(get_current_uid, None)
+        self._app.dependency_overrides.pop(get_current_role, None)
 
 
 @pytest_asyncio.fixture
@@ -104,6 +144,19 @@ async def admin_user(session: AsyncSession) -> dict:
         username="adminuser",
         avatar_url=None,
         role="admin",
+    )
+    session.add(user)
+    await session.commit()
+    return {"user_id": user.id, "username": user.username}
+
+
+@pytest_asyncio.fixture
+async def maintainer_user(session: AsyncSession) -> dict:
+    """Create a maintainer user, return their identifiers."""
+    user = User(
+        username="maintaineruser",
+        avatar_url=None,
+        role="maintainer",
     )
     session.add(user)
     await session.commit()
