@@ -13,7 +13,6 @@ if TYPE_CHECKING:
     import httpx
     from httpx import AsyncClient
     from sqlalchemy.ext.asyncio import AsyncSession
-
     from tests.conftest import _AuthOverrider
 
 pytestmark = pytest.mark.asyncio
@@ -452,6 +451,123 @@ async def test_delete_vote_creates_audit_entry(
     assert len(delete_entries) == 1
     assert delete_entries[0]["action"]["issue_id"] == seed_data["issue_id"]
     assert delete_entries[0]["action"]["ranking"] == 3
+
+
+# ---------------------------------------------------------------------------
+# GET /api/me (contributor+)
+# ---------------------------------------------------------------------------
+
+
+async def test_get_me(
+    client: AsyncClient,
+    seed_data: dict,
+    auth: _AuthOverrider,
+) -> None:
+    uid = seed_data["user_id"]
+    with auth(uid, "contributor"):
+        resp = await client.get("/api/me")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["id"] == uid
+    assert data["username"] == "testuser"
+    assert data["role"] == "contributor"
+
+
+async def test_get_me_as_admin(
+    client: AsyncClient,
+    admin_user: dict,
+    auth: _AuthOverrider,
+) -> None:
+    uid = admin_user["user_id"]
+    with auth(uid, "admin"):
+        resp = await client.get("/api/me")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["id"] == uid
+    assert data["username"] == "adminuser"
+    assert data["role"] == "admin"
+
+
+async def test_get_me_anonymous_unauthorized(client: AsyncClient) -> None:
+    resp = await client.get("/api/me")
+    assert resp.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Upsert vote via /api/me/votes (contributor+)
+# ---------------------------------------------------------------------------
+
+
+async def test_upsert_vote_creates_new(
+    client: AsyncClient,
+    seed_data: dict,
+    auth: _AuthOverrider,
+) -> None:
+    uid = seed_data["user_id"]
+    with auth(uid, "contributor"):
+        resp = await client.put(
+            "/api/me/votes",
+            json={"issue_id": seed_data["issue_id"], "ranking": 3},
+        )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["user_id"] == uid
+    assert data["issue_id"] == seed_data["issue_id"]
+    assert data["ranking"] == 3
+
+
+async def test_upsert_vote_updates_existing(
+    client: AsyncClient,
+    seed_data: dict,
+    auth: _AuthOverrider,
+) -> None:
+    uid = seed_data["user_id"]
+    with auth(uid, "contributor"):
+        await client.put(
+            "/api/me/votes",
+            json={"issue_id": seed_data["issue_id"], "ranking": 1},
+        )
+    with auth(uid, "contributor"):
+        resp = await client.put(
+            "/api/me/votes",
+            json={"issue_id": seed_data["issue_id"], "ranking": -2},
+        )
+    assert resp.status_code == 200
+    assert resp.json()["ranking"] == -2
+
+
+async def test_upsert_vote_creates_audit_log(
+    client: AsyncClient,
+    seed_data: dict,
+    admin_user: dict,
+    auth: _AuthOverrider,
+) -> None:
+    uid = seed_data["user_id"]
+    with auth(uid, "contributor"):
+        await client.put(
+            "/api/me/votes",
+            json={"issue_id": seed_data["issue_id"], "ranking": 2},
+        )
+    with auth(uid, "contributor"):
+        await client.put(
+            "/api/me/votes",
+            json={"issue_id": seed_data["issue_id"], "ranking": -1},
+        )
+
+    with auth(admin_user["user_id"], "admin"):
+        activity_resp = await client.get("/api/activity/json", params={"user_id": uid})
+    entries = activity_resp.json()["items"]
+    types = [e["action"]["type"] for e in entries]
+    assert "vote_create" in types
+    assert "vote_update" in types
+
+
+async def test_upsert_vote_anonymous_unauthorized(client: AsyncClient) -> None:
+    resp = await client.put(
+        "/api/me/votes",
+        json={"issue_id": "x/y/issue/1", "ranking": 1},
+    )
+    assert resp.status_code == 401
 
 
 # ---------------------------------------------------------------------------

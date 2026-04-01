@@ -459,6 +459,73 @@ async def list_results(
 
 
 # ---------------------------------------------------------------------------
+# JSON API — "me" shortcuts (contributor+)
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/api/me",
+    response_model=UserOut,
+    tags=["api"],
+    operation_id="get_me",
+)
+async def get_me(
+    caller_uid: ContributorUid,
+    session: SessionDep,
+) -> User:
+    """Return the profile of the currently authenticated user (contributor+)."""
+    result = await session.execute(select(User).where(User.id == caller_uid))
+    return result.scalar_one()
+
+
+@router.put(
+    "/api/me/votes",
+    response_model=VoteOut,
+    tags=["api"],
+    operation_id="upsert_vote",
+)
+async def upsert_my_vote(
+    caller_uid: ContributorUid,
+    body: VoteCreate,
+    session: SessionDep,
+) -> Vote:
+    """Create or update a vote for the current user (contributor+).
+
+    If a vote for the given issue already exists it is updated; otherwise a new
+    vote is created.  This removes the need to call create then fall back to
+    update on 409.
+    """
+    existing = await session.execute(
+        select(Vote).where(Vote.user_id == caller_uid, Vote.issue_id == body.issue_id),
+    )
+    vote = existing.scalar_one_or_none()
+    if vote is None:
+        vote = Vote(user_id=caller_uid, issue_id=body.issue_id, ranking=body.ranking)
+        session.add(vote)
+        _log_action(
+            session,
+            caller_uid,
+            {"type": "vote_create", "issue_id": body.issue_id, "ranking": body.ranking},
+        )
+    else:
+        old_ranking = vote.ranking
+        vote.ranking = body.ranking
+        _log_action(
+            session,
+            caller_uid,
+            {
+                "type": "vote_update",
+                "issue_id": body.issue_id,
+                "old_ranking": old_ranking,
+                "new_ranking": body.ranking,
+            },
+        )
+    await session.commit()
+    await session.refresh(vote)
+    return vote
+
+
+# ---------------------------------------------------------------------------
 # JSON API — contributor+
 # ---------------------------------------------------------------------------
 
