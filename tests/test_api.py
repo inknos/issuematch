@@ -6,13 +6,14 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 import pytest
-from app.models import Issue, Vote
+from app.models import Issue, User, Vote
 from sqlalchemy import delete, select
 
 if TYPE_CHECKING:
     import httpx
     from httpx import AsyncClient
     from sqlalchemy.ext.asyncio import AsyncSession
+
     from tests.conftest import _AuthOverrider
 
 pytestmark = pytest.mark.asyncio
@@ -568,6 +569,104 @@ async def test_upsert_vote_anonymous_unauthorized(client: AsyncClient) -> None:
         json={"issue_id": "x/y/issue/1", "ranking": 1},
     )
     assert resp.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# GET /api/me/votes/pick/json (contributor+)
+# ---------------------------------------------------------------------------
+
+
+async def test_pick_returns_issue_when_none_voted(
+    client: AsyncClient,
+    seed_data: dict,
+    auth: _AuthOverrider,
+) -> None:
+    uid = seed_data["user_id"]
+    with auth(uid, "contributor"):
+        resp = await client.get("/api/me/votes/pick/json")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["id"] in (seed_data["issue_id"], seed_data["issue_id_2"])
+
+
+async def test_pick_excludes_already_voted_issue(
+    client: AsyncClient,
+    seed_data: dict,
+    auth: _AuthOverrider,
+) -> None:
+    uid = seed_data["user_id"]
+    with auth(uid, "contributor"):
+        await client.put(
+            "/api/me/votes",
+            json={"issue_id": seed_data["issue_id"], "ranking": 2},
+        )
+    with auth(uid, "contributor"):
+        resp = await client.get("/api/me/votes/pick/json")
+    assert resp.status_code == 200
+    assert resp.json()["id"] == seed_data["issue_id_2"]
+
+
+async def test_pick_returns_204_when_all_voted(
+    client: AsyncClient,
+    seed_data: dict,
+    auth: _AuthOverrider,
+) -> None:
+    uid = seed_data["user_id"]
+    with auth(uid, "contributor"):
+        await client.put(
+            "/api/me/votes",
+            json={"issue_id": seed_data["issue_id"], "ranking": 1},
+        )
+        await client.put(
+            "/api/me/votes",
+            json={"issue_id": seed_data["issue_id_2"], "ranking": -1},
+        )
+    with auth(uid, "contributor"):
+        resp = await client.get("/api/me/votes/pick/json")
+    assert resp.status_code == 204
+
+
+async def test_pick_prefers_least_voted_issue(
+    client: AsyncClient,
+    seed_data: dict,
+    auth: _AuthOverrider,
+    session: AsyncSession,
+) -> None:
+    """Pick prefers the issue with fewer global votes.
+
+    When another user has voted on issue_1 but not issue_2, the pick for a
+    fresh user should prefer issue_2 (0 global votes) over issue_1 (1 vote).
+    """
+    other = User(username="other", role="contributor")
+    session.add(other)
+    await session.flush()
+    session.add(Vote(user_id=other.id, issue_id=seed_data["issue_id"], ranking=1))
+    await session.commit()
+
+    uid = seed_data["user_id"]
+    with auth(uid, "contributor"):
+        resp = await client.get("/api/me/votes/pick/json")
+    assert resp.status_code == 200
+    assert resp.json()["id"] == seed_data["issue_id_2"]
+
+
+async def test_pick_anonymous_unauthorized(client: AsyncClient) -> None:
+    resp = await client.get("/api/me/votes/pick/json")
+    assert resp.status_code == 401
+
+
+async def test_pick_returns_204_when_no_issues_exist(
+    client: AsyncClient,
+    session: AsyncSession,
+    auth: _AuthOverrider,
+) -> None:
+    user = User(username="lonely", role="contributor")
+    session.add(user)
+    await session.commit()
+
+    with auth(user.id, "contributor"):
+        resp = await client.get("/api/me/votes/pick/json")
+    assert resp.status_code == 204
 
 
 # ---------------------------------------------------------------------------

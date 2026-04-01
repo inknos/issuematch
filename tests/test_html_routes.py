@@ -5,6 +5,8 @@ from unittest.mock import patch
 
 if TYPE_CHECKING:
     from httpx import AsyncClient
+    from sqlalchemy.ext.asyncio import AsyncSession
+
     from tests.conftest import _AuthOverrider
 
 # ---------------------------------------------------------------------------
@@ -46,9 +48,30 @@ async def test_vote_shows_done_when_db_empty(client: AsyncClient) -> None:
 async def test_vote_redirects_to_least_voted_issue(
     client: AsyncClient,
     seed_data: dict,
+    session: AsyncSession,
+) -> None:
+    """When another user voted on one issue, /vote directs the current user to the unvoted one."""
+    from app.models import User, Vote  # noqa: PLC0415
+
+    other = User(username="voter2", role="contributor")
+    session.add(other)
+    await session.flush()
+    session.add(Vote(user_id=other.id, issue_id=seed_data["issue_id"], ranking=1))
+    await session.commit()
+
+    uid = seed_data["user_id"]
+    with patch("app.routes.current_user_id", return_value=uid):
+        resp = await client.get("/vote", follow_redirects=False)
+    assert resp.status_code == 303
+    assert seed_data["issue_id_2"].replace("/", "/") in resp.headers["location"]
+
+
+async def test_vote_shows_done_when_user_voted_all(
+    client: AsyncClient,
+    seed_data: dict,
     auth: _AuthOverrider,
 ) -> None:
-    """After all issues have votes, /vote still redirects to the least-voted one."""
+    """After the user voted on every issue, /vote shows the done page."""
     uid = seed_data["user_id"]
 
     with auth(uid, "contributor"):
@@ -63,8 +86,7 @@ async def test_vote_redirects_to_least_voted_issue(
 
     with patch("app.routes.current_user_id", return_value=uid):
         resp = await client.get("/vote", follow_redirects=False)
-    assert resp.status_code == 303
-    assert "/vote/" in resp.headers["location"]
+    assert resp.status_code == 200
 
 
 # ---------------------------------------------------------------------------
@@ -157,12 +179,12 @@ async def test_submit_vote_updates_existing(
     assert resp.status_code == 303
 
 
-async def test_submit_vote_redirects_to_least_voted(
+async def test_submit_vote_redirects_to_done_when_all_voted(
     client: AsyncClient,
     seed_data: dict,
     auth: _AuthOverrider,
 ) -> None:
-    """After voting on every issue, submit still redirects to a (least-voted) issue."""
+    """After voting on every issue, submit redirects to /vote/done."""
     uid = seed_data["user_id"]
     with auth(uid, "contributor"):
         await client.post(
@@ -177,7 +199,7 @@ async def test_submit_vote_redirects_to_least_voted(
             follow_redirects=False,
         )
     assert resp.status_code == 303
-    assert "/vote/" in resp.headers["location"]
+    assert "/vote/done" in resp.headers["location"]
 
 
 # ---------------------------------------------------------------------------

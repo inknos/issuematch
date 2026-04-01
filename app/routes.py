@@ -112,22 +112,29 @@ ACTION_LABELS: dict[str, tuple[str, str]] = {
 }
 
 
-async def _next_issue(session: AsyncSession) -> Issue | None:
+async def _next_issue_for_user(
+    session: AsyncSession,
+    user_id: int | None = None,
+) -> Issue | None:
     """Pick a random issue with the fewest total votes (across all users).
 
-    Unvoted issues (count 0) are naturally preferred.  When every issue has
-    at least one vote the issue with the smallest count is chosen at random.
-    Returns ``None`` only when the issues table is empty.
+    When *user_id* is provided the issues that user has already voted on are
+    excluded so the caller always receives a fresh issue to vote on.
+
+    Among the remaining candidates the one with the globally smallest vote
+    count is chosen at random, so unvoted issues (count 0) are naturally
+    preferred.  Returns ``None`` when no eligible issue exists.
     """
-    vote_counts = (
-        select(
-            Issue.id.label("issue_id"),
-            func.count(Vote.id).label("cnt"),
-        )
-        .outerjoin(Vote, Vote.issue_id == Issue.id)
-        .group_by(Issue.id)
-        .subquery()
-    )
+    base = select(
+        Issue.id.label("issue_id"),
+        func.count(Vote.id).label("cnt"),
+    ).outerjoin(Vote, Vote.issue_id == Issue.id)
+
+    if user_id is not None:
+        already_voted = select(Vote.issue_id).where(Vote.user_id == user_id).subquery()
+        base = base.where(Issue.id.notin_(select(already_voted)))
+
+    vote_counts = base.group_by(Issue.id).subquery()
 
     min_result = await session.execute(select(func.min(vote_counts.c.cnt)))
     min_count = min_result.scalar_one_or_none()
@@ -159,7 +166,7 @@ async def vote_redirect(
     if uid is None:
         return RedirectResponse(url="/login", status_code=303)
 
-    issue = await _next_issue(session)
+    issue = await _next_issue_for_user(session, user_id=uid)
     if issue is None:
         return templates.TemplateResponse("vote.html", {"request": request, "issue": None})
 
@@ -247,7 +254,7 @@ async def submit_vote(
             )
         await session.commit()
 
-    issue = await _next_issue(session)
+    issue = await _next_issue_for_user(session, user_id=uid)
     if issue:
         return RedirectResponse(url=_issue_vote_url(issue), status_code=303)
     return RedirectResponse(url="/vote/done", status_code=303)
@@ -525,6 +532,28 @@ async def upsert_my_vote(
     await session.commit()
     await session.refresh(vote)
     return vote
+
+
+@router.get(
+    "/api/me/votes/pick/json",
+    response_model=IssueOut,
+    tags=["api"],
+    operation_id="pick_issue_to_vote",
+    responses={204: {"description": "No unvoted issues available"}},
+)
+async def pick_issue_to_vote(
+    caller_uid: ContributorUid,
+    session: SessionDep,
+) -> Issue | Response:
+    """Return a random issue the caller has not yet voted on (contributor+).
+
+    Prefers issues with the fewest total votes globally.  Returns 204 when
+    every issue has already been voted on by the caller.
+    """
+    issue = await _next_issue_for_user(session, user_id=caller_uid)
+    if issue is None:
+        return Response(status_code=204)
+    return issue
 
 
 # ---------------------------------------------------------------------------
