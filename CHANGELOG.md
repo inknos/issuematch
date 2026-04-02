@@ -1,3 +1,9 @@
+## v0.5.1 (2026-04-02)
+
+### Fix
+
+- remove template secrets file from upstream
+
 ## v0.5.0 (2026-04-01)
 
 ### Feat
