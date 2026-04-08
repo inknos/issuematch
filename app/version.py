@@ -5,3 +5,6 @@ in pyproject.toml.
 """
 
 __version__ = "0.7.0"
+
+SCHEMA_VERSION = 3
+"""Increment this integer each time a new Alembic migration is created."""

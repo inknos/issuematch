@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Annotated
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.orm import selectinload
 
 from app.auth import (
@@ -47,7 +47,7 @@ from app.errors import (
     WrongPasswordError,
 )
 from app.github import fetch_and_store
-from app.version import __version__
+from app.version import SCHEMA_VERSION, __version__
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -69,6 +69,7 @@ from app.schemas import (
     PaginatedResults,
     PaginatedVotes,
     PasswordUpdate,
+    PingOut,
     RoleUpdate,
     TokenStatusOut,
     UserCreate,
@@ -384,6 +385,30 @@ async def results_page(
 # ---------------------------------------------------------------------------
 # JSON API — public
 # ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/api/ping",
+    response_model=PingOut,
+    tags=["api"],
+    operation_id="ping",
+)
+async def ping(session: SessionDep) -> dict:
+    """Return app version and DB schema version."""
+    db_version = None
+    db_error = None
+    try:
+        result = await session.execute(text("SELECT version_num FROM alembic_version"))
+        revision = result.scalar()
+        db_version = f"{SCHEMA_VERSION}:{revision}"
+    except Exception as exc:  # noqa: BLE001
+        db_error = str(exc)
+    return {
+        "status": "ok",
+        "app_version": __version__,
+        "db_version": db_version,
+        "db_error": db_error,
+    }
 
 
 @router.get(

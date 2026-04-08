@@ -254,3 +254,12 @@ class ApiTokenCreated(ApiTokenOut):
     """Returned once at creation time — includes the raw secret."""
 
     raw_token: str
+
+
+class PingOut(BaseModel):
+    """Health-check response with app and DB schema versions."""
+
+    status: str
+    app_version: str
+    db_version: str | None
+    db_error: str | None = None
