@@ -48,9 +48,15 @@ class VoteCreate(_RankingValidator, BaseModel):
 
 
 class VoteUpdate(_RankingValidator, BaseModel):
-    """Payload for updating an existing vote's ranking."""
+    """Payload for updating an existing vote's ranking (identified by issue_id)."""
 
     issue_id: str
+    ranking: Ranking | None
+
+
+class VoteRankingUpdate(_RankingValidator, BaseModel):
+    """Payload for updating a vote identified by its DB id (ranking only)."""
+
     ranking: Ranking | None
 
 

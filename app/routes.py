@@ -30,6 +30,7 @@ from app.crypto import (
 from app.database import SessionDep
 from app.database import async_session as app_session_factory
 from app.errors import (
+    BatchTooLargeError,
     DuplicateUsernameError,
     DuplicateVoteError,
     EmptyFieldError,
@@ -74,6 +75,7 @@ from app.schemas import (
     UserOut,
     VoteCreate,
     VoteOut,
+    VoteRankingUpdate,
     VoteUpdate,
 )
 
@@ -489,51 +491,192 @@ async def get_me(
     return result.scalar_one()
 
 
-@router.put(
-    "/api/me/votes",
-    response_model=VoteOut,
-    tags=["api"],
-    operation_id="upsert_vote",
-)
-async def upsert_my_vote(
-    caller_uid: ContributorUid,
-    body: VoteCreate,
-    session: SessionDep,
-) -> Vote:
-    """Create or update a vote for the current user (contributor+).
+_MAX_BATCH_SIZE = 100
 
-    If a vote for the given issue already exists it is updated; otherwise a new
-    vote is created.  This removes the need to call create then fall back to
-    update on 409.
-    """
+
+async def _create_votes(
+    session: AsyncSession,
+    user_id: int,
+    items: list[VoteCreate],
+) -> list[Vote]:
+    """Insert new votes for *user_id*; raises 409 if any already exist."""
+    if len(items) > _MAX_BATCH_SIZE:
+        raise BatchTooLargeError
+    issue_ids = [item.issue_id for item in items]
     existing = await session.execute(
-        select(Vote).where(Vote.user_id == caller_uid, Vote.issue_id == body.issue_id),
+        select(Vote.issue_id).where(Vote.user_id == user_id, Vote.issue_id.in_(issue_ids)),
     )
-    vote = existing.scalar_one_or_none()
-    if vote is None:
-        vote = Vote(user_id=caller_uid, issue_id=body.issue_id, ranking=body.ranking)
+    if existing.scalars().first() is not None:
+        raise DuplicateVoteError
+    votes: list[Vote] = []
+    for item in items:
+        vote = Vote(user_id=user_id, issue_id=item.issue_id, ranking=item.ranking)
         session.add(vote)
         _log_action(
             session,
-            caller_uid,
-            {"type": "vote_create", "issue_id": body.issue_id, "ranking": body.ranking},
+            user_id,
+            {"type": "vote_create", "issue_id": item.issue_id, "ranking": item.ranking},
         )
-    else:
+        votes.append(vote)
+    await session.commit()
+    for v in votes:
+        await session.refresh(v)
+    return votes
+
+
+async def _update_votes(
+    session: AsyncSession,
+    user_id: int,
+    items: list[VoteUpdate],
+) -> list[Vote]:
+    """Update existing votes for *user_id* by issue_id; raises 404 if any missing."""
+    if len(items) > _MAX_BATCH_SIZE:
+        raise BatchTooLargeError
+    issue_ids = [item.issue_id for item in items]
+    result = await session.execute(
+        select(Vote).where(Vote.user_id == user_id, Vote.issue_id.in_(issue_ids)),
+    )
+    vote_map = {v.issue_id: v for v in result.scalars().all()}
+    for item in items:
+        if item.issue_id not in vote_map:
+            raise VoteNotFoundError
+    votes: list[Vote] = []
+    for item in items:
+        vote = vote_map[item.issue_id]
         old_ranking = vote.ranking
-        vote.ranking = body.ranking
+        vote.ranking = item.ranking
         _log_action(
             session,
-            caller_uid,
+            user_id,
             {
                 "type": "vote_update",
-                "issue_id": body.issue_id,
+                "issue_id": item.issue_id,
                 "old_ranking": old_ranking,
-                "new_ranking": body.ranking,
+                "new_ranking": item.ranking,
             },
         )
+        votes.append(vote)
+    await session.commit()
+    for v in votes:
+        await session.refresh(v)
+    return votes
+
+
+async def _update_vote_by_id(
+    session: AsyncSession,
+    user_id: int,
+    vote_id: int,
+    ranking: int | None,
+) -> Vote:
+    """Update a single vote by its DB id; raises 404 if not found or not owned."""
+    result = await session.execute(
+        select(Vote).where(Vote.id == vote_id, Vote.user_id == user_id),
+    )
+    vote = result.scalar_one_or_none()
+    if vote is None:
+        raise VoteNotFoundError
+    old_ranking = vote.ranking
+    vote.ranking = ranking
+    _log_action(
+        session,
+        user_id,
+        {
+            "type": "vote_update",
+            "issue_id": vote.issue_id,
+            "old_ranking": old_ranking,
+            "new_ranking": ranking,
+        },
+    )
     await session.commit()
     await session.refresh(vote)
     return vote
+
+
+async def _delete_vote_by_id(
+    session: AsyncSession,
+    user_id: int,
+    vote_id: int,
+) -> None:
+    """Delete a single vote by its DB id; raises 404 if not found or not owned."""
+    result = await session.execute(
+        select(Vote).where(Vote.id == vote_id, Vote.user_id == user_id),
+    )
+    vote = result.scalar_one_or_none()
+    if vote is None:
+        raise VoteNotFoundError
+    _log_action(
+        session,
+        user_id,
+        {"type": "vote_delete", "issue_id": vote.issue_id, "ranking": vote.ranking},
+    )
+    await session.execute(delete(Vote).where(Vote.id == vote_id))
+    await session.commit()
+
+
+# --- /api/me/votes endpoints (thin wrappers) ---
+
+
+@router.post(
+    "/api/me/votes",
+    response_model=list[VoteOut],
+    status_code=201,
+    tags=["api"],
+    operation_id="create_my_votes",
+)
+async def create_my_votes(
+    caller_uid: ContributorUid,
+    body: list[VoteCreate],
+    session: SessionDep,
+) -> list[Vote]:
+    """Create votes for the current user (contributor+). Body is a list."""
+    return await _create_votes(session, caller_uid, body)
+
+
+@router.put(
+    "/api/me/votes",
+    response_model=list[VoteOut],
+    tags=["api"],
+    operation_id="update_my_votes",
+)
+async def update_my_votes(
+    caller_uid: ContributorUid,
+    body: list[VoteUpdate],
+    session: SessionDep,
+) -> list[Vote]:
+    """Update votes for the current user by issue_id (contributor+). Body is a list."""
+    return await _update_votes(session, caller_uid, body)
+
+
+@router.put(
+    "/api/me/votes/{vote_id}",
+    response_model=VoteOut,
+    tags=["api"],
+    operation_id="update_my_vote",
+)
+async def update_my_vote(
+    caller_uid: ContributorUid,
+    vote_id: int,
+    body: VoteRankingUpdate,
+    session: SessionDep,
+) -> Vote:
+    """Update a single vote by its DB id for the current user (contributor+)."""
+    return await _update_vote_by_id(session, caller_uid, vote_id, body.ranking)
+
+
+@router.delete(
+    "/api/me/votes/{vote_id}",
+    status_code=204,
+    tags=["api"],
+    operation_id="delete_my_vote",
+)
+async def delete_my_vote(
+    caller_uid: ContributorUid,
+    vote_id: int,
+    session: SessionDep,
+) -> Response:
+    """Delete a single vote by its DB id for the current user (contributor+)."""
+    await _delete_vote_by_id(session, caller_uid, vote_id)
+    return Response(status_code=204)
 
 
 @router.get(
@@ -630,80 +773,65 @@ async def get_user_votes(
 
 @router.post(
     "/api/users/{user_id}/votes",
-    response_model=VoteOut,
+    response_model=list[VoteOut],
     status_code=201,
     tags=["api"],
-    operation_id="create_vote",
+    operation_id="create_user_votes",
 )
-async def create_user_vote(
+async def create_user_votes(
     caller_uid: ContributorUid,
     user_id: int,
-    body: VoteCreate,
+    body: list[VoteCreate],
     session: SessionDep,
-) -> Vote:
-    """Create a vote for the given user; 409 if a vote already exists (contributor+, own only)."""
+) -> list[Vote]:
+    """Create votes for the given user; 409 if any already exist (contributor+, own only)."""
     if caller_uid != user_id:
         raise ForbiddenAccessError
-    existing = await session.execute(
-        select(Vote).where(Vote.user_id == user_id, Vote.issue_id == body.issue_id),
-    )
-    if existing.scalar_one_or_none() is not None:
-        raise DuplicateVoteError
-    vote = Vote(user_id=user_id, issue_id=body.issue_id, ranking=body.ranking)
-    session.add(vote)
-    _log_action(
-        session,
-        user_id,
-        {"type": "vote_create", "issue_id": body.issue_id, "ranking": body.ranking},
-    )
-    await session.commit()
-    await session.refresh(vote)
-    return vote
+    return await _create_votes(session, user_id, body)
 
 
 @router.put(
     "/api/users/{user_id}/votes",
+    response_model=list[VoteOut],
+    tags=["api"],
+    operation_id="update_user_votes",
+)
+async def update_user_votes(
+    caller_uid: ContributorUid,
+    user_id: int,
+    body: list[VoteUpdate],
+    session: SessionDep,
+) -> list[Vote]:
+    """Update votes for the given user by issue_id; 404 if any missing (contributor+, own only)."""
+    if caller_uid != user_id:
+        raise ForbiddenAccessError
+    return await _update_votes(session, user_id, body)
+
+
+@router.put(
+    "/api/users/{user_id}/votes/{vote_id}",
     response_model=VoteOut,
     tags=["api"],
-    operation_id="update_vote",
+    operation_id="update_user_vote",
 )
 async def update_user_vote(
     caller_uid: ContributorUid,
     user_id: int,
-    body: VoteUpdate,
+    vote_id: int,
+    body: VoteRankingUpdate,
     session: SessionDep,
 ) -> Vote:
-    """Update the ranking of an existing vote; 404 if not found (contributor+, own only)."""
+    """Update a single vote by its DB id (contributor+, own only)."""
     if caller_uid != user_id:
         raise ForbiddenAccessError
-    result = await session.execute(
-        select(Vote).where(Vote.user_id == user_id, Vote.issue_id == body.issue_id),
-    )
-    vote = result.scalar_one_or_none()
-    if vote is None:
-        raise VoteNotFoundError
-    old_ranking = vote.ranking
-    vote.ranking = body.ranking
-    _log_action(
-        session,
-        user_id,
-        {
-            "type": "vote_update",
-            "issue_id": body.issue_id,
-            "old_ranking": old_ranking,
-            "new_ranking": body.ranking,
-        },
-    )
-    await session.commit()
-    await session.refresh(vote)
-    return vote
+    return await _update_vote_by_id(session, user_id, vote_id, body.ranking)
 
 
 @router.delete(
     "/api/users/{user_id}/votes/{vote_id}",
     status_code=204,
     tags=["api"],
-    operation_id="delete_vote",
+    operation_id="delete_user_vote",
 )
 async def delete_user_vote(
     caller_uid: ContributorUid,
@@ -714,23 +842,7 @@ async def delete_user_vote(
     """Delete a specific vote owned by the given user; 404 if not found (contributor+, own only)."""
     if caller_uid != user_id:
         raise ForbiddenAccessError
-    result = await session.execute(
-        select(Vote).where(Vote.id == vote_id, Vote.user_id == user_id),
-    )
-    vote = result.scalar_one_or_none()
-    if vote is None:
-        raise VoteNotFoundError
-    _log_action(
-        session,
-        user_id,
-        {
-            "type": "vote_delete",
-            "issue_id": vote.issue_id,
-            "ranking": vote.ranking,
-        },
-    )
-    await session.execute(delete(Vote).where(Vote.id == vote_id))
-    await session.commit()
+    await _delete_vote_by_id(session, user_id, vote_id)
     return Response(status_code=204)
 
 

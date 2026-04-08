@@ -31,10 +31,11 @@ async def _create_vote(
     issue_id: str,
     ranking: int,
 ) -> httpx.Response:
+    """Create a single vote via the list endpoint and return the response."""
     with auth(uid, "contributor"):
         resp = await client.post(
             f"/api/users/{uid}/votes",
-            json={"issue_id": issue_id, "ranking": ranking},
+            json=[{"issue_id": issue_id, "ranking": ranking}],
         )
     assert resp.status_code == 201
     return resp
@@ -287,15 +288,16 @@ async def test_create_vote(
     with auth(uid, "contributor"):
         resp = await client.post(
             f"/api/users/{uid}/votes",
-            json={"issue_id": seed_data["issue_id"], "ranking": 3},
+            json=[{"issue_id": seed_data["issue_id"], "ranking": 3}],
         )
     assert resp.status_code == 201
     data = resp.json()
-    assert data["user_id"] == uid
-    assert data["issue_id"] == seed_data["issue_id"]
-    assert data["ranking"] == 3
-    assert "id" in data
-    assert "created_at" in data
+    assert len(data) == 1
+    assert data[0]["user_id"] == uid
+    assert data[0]["issue_id"] == seed_data["issue_id"]
+    assert data[0]["ranking"] == 3
+    assert "id" in data[0]
+    assert "created_at" in data[0]
 
 
 async def test_create_vote_null_ranking(
@@ -307,10 +309,10 @@ async def test_create_vote_null_ranking(
     with auth(uid, "contributor"):
         resp = await client.post(
             f"/api/users/{uid}/votes",
-            json={"issue_id": seed_data["issue_id"]},
+            json=[{"issue_id": seed_data["issue_id"]}],
         )
     assert resp.status_code == 201
-    assert resp.json()["ranking"] is None
+    assert resp.json()[0]["ranking"] is None
 
 
 async def test_create_vote_duplicate_409(
@@ -323,9 +325,28 @@ async def test_create_vote_duplicate_409(
     with auth(uid, "contributor"):
         resp = await client.post(
             f"/api/users/{uid}/votes",
-            json={"issue_id": seed_data["issue_id"]},
+            json=[{"issue_id": seed_data["issue_id"]}],
         )
     assert resp.status_code == 409
+
+
+async def test_create_vote_batch(
+    client: AsyncClient,
+    seed_data: dict,
+    auth: _AuthOverrider,
+) -> None:
+    uid = seed_data["user_id"]
+    with auth(uid, "contributor"):
+        resp = await client.post(
+            f"/api/users/{uid}/votes",
+            json=[
+                {"issue_id": seed_data["issue_id"], "ranking": 3},
+                {"issue_id": seed_data["issue_id_2"], "ranking": -1},
+            ],
+        )
+    assert resp.status_code == 201
+    data = resp.json()
+    assert len(data) == 2
 
 
 async def test_create_vote_as_other_user_forbidden(
@@ -337,7 +358,7 @@ async def test_create_vote_as_other_user_forbidden(
     with auth(seed_data["user_id"], "contributor"):
         resp = await client.post(
             f"/api/users/{admin_user['user_id']}/votes",
-            json={"issue_id": seed_data["issue_id"], "ranking": 1},
+            json=[{"issue_id": seed_data["issue_id"], "ranking": 1}],
         )
     assert resp.status_code == 403
 
@@ -345,7 +366,7 @@ async def test_create_vote_as_other_user_forbidden(
 async def test_create_vote_anonymous_unauthorized(client: AsyncClient) -> None:
     resp = await client.post(
         "/api/users/1/votes",
-        json={"issue_id": "x/y/issue/1", "ranking": 1},
+        json=[{"issue_id": "x/y/issue/1", "ranking": 1}],
     )
     assert resp.status_code == 401
 
@@ -364,12 +385,13 @@ async def test_update_vote(
     with auth(uid, "contributor"):
         resp = await client.put(
             f"/api/users/{uid}/votes",
-            json={"issue_id": seed_data["issue_id"], "ranking": -2},
+            json=[{"issue_id": seed_data["issue_id"], "ranking": -2}],
         )
     assert resp.status_code == 200
     data = resp.json()
-    assert data["ranking"] == -2
-    assert data["issue_id"] == seed_data["issue_id"]
+    assert len(data) == 1
+    assert data[0]["ranking"] == -2
+    assert data[0]["issue_id"] == seed_data["issue_id"]
 
 
 async def test_update_vote_not_found(
@@ -381,9 +403,27 @@ async def test_update_vote_not_found(
     with auth(uid, "contributor"):
         resp = await client.put(
             f"/api/users/{uid}/votes",
-            json={"issue_id": seed_data["issue_id"], "ranking": 1},
+            json=[{"issue_id": seed_data["issue_id"], "ranking": 1}],
         )
     assert resp.status_code == 404
+
+
+async def test_update_vote_by_id(
+    client: AsyncClient,
+    seed_data: dict,
+    auth: _AuthOverrider,
+) -> None:
+    uid = seed_data["user_id"]
+    create_resp = await _create_vote(client, auth, uid, seed_data["issue_id"], 1)
+    vote_id = create_resp.json()[0]["id"]
+
+    with auth(uid, "contributor"):
+        resp = await client.put(
+            f"/api/users/{uid}/votes/{vote_id}",
+            json={"ranking": -3},
+        )
+    assert resp.status_code == 200
+    assert resp.json()["ranking"] == -3
 
 
 # --- User votes (DELETE, contributor+ own only) ---
@@ -396,7 +436,7 @@ async def test_delete_vote(
 ) -> None:
     uid = seed_data["user_id"]
     create_resp = await _create_vote(client, auth, uid, seed_data["issue_id"], 2)
-    vote_id = create_resp.json()["id"]
+    vote_id = create_resp.json()[0]["id"]
 
     with auth(uid, "contributor"):
         resp = await client.delete(f"/api/users/{uid}/votes/{vote_id}")
@@ -425,7 +465,7 @@ async def test_delete_vote_wrong_user(
 ) -> None:
     uid = seed_data["user_id"]
     create_resp = await _create_vote(client, auth, uid, seed_data["issue_id"], 1)
-    vote_id = create_resp.json()["id"]
+    vote_id = create_resp.json()[0]["id"]
 
     with auth(uid, "contributor"):
         resp = await client.delete(f"/api/users/99999/votes/{vote_id}")
@@ -440,7 +480,7 @@ async def test_delete_vote_creates_audit_entry(
 ) -> None:
     uid = seed_data["user_id"]
     create_resp = await _create_vote(client, auth, uid, seed_data["issue_id"], 3)
-    vote_id = create_resp.json()["id"]
+    vote_id = create_resp.json()[0]["id"]
 
     with auth(uid, "contributor"):
         await client.delete(f"/api/users/{uid}/votes/{vote_id}")
@@ -495,49 +535,106 @@ async def test_get_me_anonymous_unauthorized(client: AsyncClient) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Upsert vote via /api/me/votes (contributor+)
+# POST /api/me/votes — create_my_votes (contributor+)
 # ---------------------------------------------------------------------------
 
 
-async def test_upsert_vote_creates_new(
+async def test_create_my_votes(
     client: AsyncClient,
     seed_data: dict,
     auth: _AuthOverrider,
 ) -> None:
     uid = seed_data["user_id"]
     with auth(uid, "contributor"):
-        resp = await client.put(
+        resp = await client.post(
             "/api/me/votes",
-            json={"issue_id": seed_data["issue_id"], "ranking": 3},
+            json=[{"issue_id": seed_data["issue_id"], "ranking": 3}],
         )
-    assert resp.status_code == 200
+    assert resp.status_code == 201
     data = resp.json()
-    assert data["user_id"] == uid
-    assert data["issue_id"] == seed_data["issue_id"]
-    assert data["ranking"] == 3
+    assert len(data) == 1
+    assert data[0]["user_id"] == uid
+    assert data[0]["issue_id"] == seed_data["issue_id"]
+    assert data[0]["ranking"] == 3
 
 
-async def test_upsert_vote_updates_existing(
+async def test_create_my_votes_batch(
     client: AsyncClient,
     seed_data: dict,
     auth: _AuthOverrider,
 ) -> None:
     uid = seed_data["user_id"]
     with auth(uid, "contributor"):
-        await client.put(
+        resp = await client.post(
             "/api/me/votes",
-            json={"issue_id": seed_data["issue_id"], "ranking": 1},
+            json=[
+                {"issue_id": seed_data["issue_id"], "ranking": 2},
+                {"issue_id": seed_data["issue_id_2"], "ranking": -1},
+            ],
+        )
+    assert resp.status_code == 201
+    assert len(resp.json()) == 2
+
+
+async def test_create_my_votes_duplicate_409(
+    client: AsyncClient,
+    seed_data: dict,
+    auth: _AuthOverrider,
+) -> None:
+    uid = seed_data["user_id"]
+    with auth(uid, "contributor"):
+        await client.post(
+            "/api/me/votes",
+            json=[{"issue_id": seed_data["issue_id"], "ranking": 1}],
+        )
+    with auth(uid, "contributor"):
+        resp = await client.post(
+            "/api/me/votes",
+            json=[{"issue_id": seed_data["issue_id"], "ranking": 2}],
+        )
+    assert resp.status_code == 409
+
+
+# ---------------------------------------------------------------------------
+# PUT /api/me/votes — update_my_votes (contributor+)
+# ---------------------------------------------------------------------------
+
+
+async def test_update_my_votes(
+    client: AsyncClient,
+    seed_data: dict,
+    auth: _AuthOverrider,
+) -> None:
+    uid = seed_data["user_id"]
+    with auth(uid, "contributor"):
+        await client.post(
+            "/api/me/votes",
+            json=[{"issue_id": seed_data["issue_id"], "ranking": 1}],
         )
     with auth(uid, "contributor"):
         resp = await client.put(
             "/api/me/votes",
-            json={"issue_id": seed_data["issue_id"], "ranking": -2},
+            json=[{"issue_id": seed_data["issue_id"], "ranking": -2}],
         )
     assert resp.status_code == 200
-    assert resp.json()["ranking"] == -2
+    assert resp.json()[0]["ranking"] == -2
 
 
-async def test_upsert_vote_creates_audit_log(
+async def test_update_my_votes_not_found(
+    client: AsyncClient,
+    seed_data: dict,
+    auth: _AuthOverrider,
+) -> None:
+    uid = seed_data["user_id"]
+    with auth(uid, "contributor"):
+        resp = await client.put(
+            "/api/me/votes",
+            json=[{"issue_id": seed_data["issue_id"], "ranking": 1}],
+        )
+    assert resp.status_code == 404
+
+
+async def test_me_votes_create_and_update_audit_log(
     client: AsyncClient,
     seed_data: dict,
     admin_user: dict,
@@ -545,14 +642,14 @@ async def test_upsert_vote_creates_audit_log(
 ) -> None:
     uid = seed_data["user_id"]
     with auth(uid, "contributor"):
-        await client.put(
+        await client.post(
             "/api/me/votes",
-            json={"issue_id": seed_data["issue_id"], "ranking": 2},
+            json=[{"issue_id": seed_data["issue_id"], "ranking": 2}],
         )
     with auth(uid, "contributor"):
         await client.put(
             "/api/me/votes",
-            json={"issue_id": seed_data["issue_id"], "ranking": -1},
+            json=[{"issue_id": seed_data["issue_id"], "ranking": -1}],
         )
 
     with auth(admin_user["user_id"], "admin"):
@@ -563,10 +660,55 @@ async def test_upsert_vote_creates_audit_log(
     assert "vote_update" in types
 
 
-async def test_upsert_vote_anonymous_unauthorized(client: AsyncClient) -> None:
-    resp = await client.put(
+# ---------------------------------------------------------------------------
+# PUT /api/me/votes/{vote_id} — update_my_vote (contributor+)
+# ---------------------------------------------------------------------------
+
+
+async def test_update_my_vote_by_id(
+    client: AsyncClient,
+    seed_data: dict,
+    auth: _AuthOverrider,
+) -> None:
+    uid = seed_data["user_id"]
+    with auth(uid, "contributor"):
+        create_resp = await client.post(
+            "/api/me/votes",
+            json=[{"issue_id": seed_data["issue_id"], "ranking": 1}],
+        )
+    vote_id = create_resp.json()[0]["id"]
+    with auth(uid, "contributor"):
+        resp = await client.put(f"/api/me/votes/{vote_id}", json={"ranking": -3})
+    assert resp.status_code == 200
+    assert resp.json()["ranking"] == -3
+
+
+# ---------------------------------------------------------------------------
+# DELETE /api/me/votes/{vote_id} — delete_my_vote (contributor+)
+# ---------------------------------------------------------------------------
+
+
+async def test_delete_my_vote(
+    client: AsyncClient,
+    seed_data: dict,
+    auth: _AuthOverrider,
+) -> None:
+    uid = seed_data["user_id"]
+    with auth(uid, "contributor"):
+        create_resp = await client.post(
+            "/api/me/votes",
+            json=[{"issue_id": seed_data["issue_id"], "ranking": 2}],
+        )
+    vote_id = create_resp.json()[0]["id"]
+    with auth(uid, "contributor"):
+        resp = await client.delete(f"/api/me/votes/{vote_id}")
+    assert resp.status_code == 204
+
+
+async def test_create_my_votes_anonymous_unauthorized(client: AsyncClient) -> None:
+    resp = await client.post(
         "/api/me/votes",
-        json={"issue_id": "x/y/issue/1", "ranking": 1},
+        json=[{"issue_id": "x/y/issue/1", "ranking": 1}],
     )
     assert resp.status_code == 401
 
@@ -596,9 +738,9 @@ async def test_pick_excludes_already_voted_issue(
 ) -> None:
     uid = seed_data["user_id"]
     with auth(uid, "contributor"):
-        await client.put(
+        await client.post(
             "/api/me/votes",
-            json={"issue_id": seed_data["issue_id"], "ranking": 2},
+            json=[{"issue_id": seed_data["issue_id"], "ranking": 2}],
         )
     with auth(uid, "contributor"):
         resp = await client.get("/api/me/votes/pick/json")
@@ -613,13 +755,12 @@ async def test_pick_returns_204_when_all_voted(
 ) -> None:
     uid = seed_data["user_id"]
     with auth(uid, "contributor"):
-        await client.put(
+        await client.post(
             "/api/me/votes",
-            json={"issue_id": seed_data["issue_id"], "ranking": 1},
-        )
-        await client.put(
-            "/api/me/votes",
-            json={"issue_id": seed_data["issue_id_2"], "ranking": -1},
+            json=[
+                {"issue_id": seed_data["issue_id"], "ranking": 1},
+                {"issue_id": seed_data["issue_id_2"], "ranking": -1},
+            ],
         )
     with auth(uid, "contributor"):
         resp = await client.get("/api/me/votes/pick/json")
@@ -720,7 +861,7 @@ async def test_activity_created_on_vote_update(
     with auth(uid, "contributor"):
         await client.put(
             f"/api/users/{uid}/votes",
-            json={"issue_id": seed_data["issue_id"], "ranking": -2},
+            json=[{"issue_id": seed_data["issue_id"], "ranking": -2}],
         )
 
     with auth(admin_user["user_id"], "admin"):

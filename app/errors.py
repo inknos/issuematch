@@ -69,6 +69,13 @@ class NoPasswordSetError(BadRequestError):
     default_detail = "No password set — ask an admin to set one"
 
 
+class BatchTooLargeError(BadRequestError):
+    """The batch payload exceeds the maximum allowed size."""
+
+    error_code = "BATCH_TOO_LARGE"
+    default_detail = "Batch size must not exceed 100 items"
+
+
 class MissingConfigError(BadRequestError):
     """A required server-side configuration value is absent."""
 

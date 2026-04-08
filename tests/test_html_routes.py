@@ -77,11 +77,10 @@ async def test_vote_shows_done_when_user_voted_all(
     with auth(uid, "contributor"):
         await client.post(
             f"/api/users/{uid}/votes",
-            json={"issue_id": seed_data["issue_id"], "ranking": 1},
-        )
-        await client.post(
-            f"/api/users/{uid}/votes",
-            json={"issue_id": seed_data["issue_id_2"], "ranking": 2},
+            json=[
+                {"issue_id": seed_data["issue_id"], "ranking": 1},
+                {"issue_id": seed_data["issue_id_2"], "ranking": 2},
+            ],
         )
 
     with patch("app.routes.current_user_id", return_value=uid):
@@ -122,7 +121,7 @@ async def test_vote_page_shows_existing_ranking(
     with auth(uid, "contributor"):
         await client.post(
             f"/api/users/{uid}/votes",
-            json={"issue_id": seed_data["issue_id"], "ranking": 3},
+            json=[{"issue_id": seed_data["issue_id"], "ranking": 3}],
         )
 
     with patch("app.routes.current_user_id", return_value=uid):
@@ -167,7 +166,7 @@ async def test_submit_vote_updates_existing(
     with auth(uid, "contributor"):
         await client.post(
             f"/api/users/{uid}/votes",
-            json={"issue_id": seed_data["issue_id"], "ranking": 1},
+            json=[{"issue_id": seed_data["issue_id"], "ranking": 1}],
         )
 
     with patch("app.routes.current_user_id", return_value=uid):
@@ -189,7 +188,7 @@ async def test_submit_vote_redirects_to_done_when_all_voted(
     with auth(uid, "contributor"):
         await client.post(
             f"/api/users/{uid}/votes",
-            json={"issue_id": seed_data["issue_id"], "ranking": 1},
+            json=[{"issue_id": seed_data["issue_id"], "ranking": 1}],
         )
 
     with patch("app.routes.current_user_id", return_value=uid):
@@ -287,7 +286,7 @@ async def test_activity_page_shows_entries(
     with auth(uid, "contributor"):
         await client.post(
             f"/api/users/{uid}/votes",
-            json={"issue_id": seed_data["issue_id"], "ranking": 2},
+            json=[{"issue_id": seed_data["issue_id"], "ranking": 2}],
         )
 
     with patch("app.routes.current_user_id", return_value=uid):
@@ -306,11 +305,11 @@ async def test_activity_page_shows_vote_update(
     with auth(uid, "contributor"):
         await client.post(
             f"/api/users/{uid}/votes",
-            json={"issue_id": seed_data["issue_id"], "ranking": 1},
+            json=[{"issue_id": seed_data["issue_id"], "ranking": 1}],
         )
         await client.put(
             f"/api/users/{uid}/votes",
-            json={"issue_id": seed_data["issue_id"], "ranking": -2},
+            json=[{"issue_id": seed_data["issue_id"], "ranking": -2}],
         )
 
     with patch("app.routes.current_user_id", return_value=uid):
@@ -333,9 +332,9 @@ async def test_results_page_shows_delete_button_for_voted_issue(
     with auth(uid, "contributor"):
         create_resp = await client.post(
             f"/api/users/{uid}/votes",
-            json={"issue_id": seed_data["issue_id"], "ranking": 2},
+            json=[{"issue_id": seed_data["issue_id"], "ranking": 2}],
         )
-    vote_id = create_resp.json()["id"]
+    vote_id = create_resp.json()[0]["id"]
 
     with patch("app.routes.current_user_id", return_value=uid):
         resp = await client.get("/votes")
