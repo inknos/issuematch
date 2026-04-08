@@ -74,6 +74,37 @@ Issue fetching is done from the **Admin panel** in the web UI. Admin users can:
 
 Visit http://localhost:8000/results to see all issues ranked by average score.
 
+## Releasing
+
+Commits follow [Conventional Commits](https://www.conventionalcommits.org/)
+via [commitizen](https://commitizen-tools.github.io/commitizen/).
+Versions are bumped automatically from the commit history.
+
+```bash
+# 1. Stage your changes and commit with the interactive prompt
+uv run --extra dev cz commit
+
+# 2. When ready to release, bump the version (updates pyproject.toml,
+#    app/version.py, CHANGELOG.md, runs `uv lock`, commits, and tags)
+uv run --extra dev cz bump          # auto-determines bump level
+uv run --extra dev cz bump --minor  # force a minor bump
+
+# 3. Push the commit and tag
+git push origin main --tags
+
+# 4. Build and push the container image
+podman build -t ghcr.io/inknos/issuematch:v<VERSION> -t ghcr.io/inknos/issuematch:latest .
+podman push ghcr.io/inknos/issuematch:v<VERSION>
+podman push ghcr.io/inknos/issuematch:latest
+
+# 5. Roll out the new image on OpenShift
+oc rollout restart deployment/inknos-issuematch
+oc rollout restart deployment/inknos-issuematch-dev
+```
+
+Production pins to a tagged image (e.g. `:v0`); dev uses `:latest`.
+See `oc/README.md` for full deployment details.
+
 ## JSON API
 
 | Method | Endpoint | Description |
