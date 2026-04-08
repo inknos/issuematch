@@ -28,12 +28,14 @@ jobs:
       - name: Determine tags
         id: tags
         run: |
-          TAGS="latest $(echo ${{ github.sha }} | cut -c1-7)"
+          SHORT_SHA="$(echo ${{ github.sha }} | cut -c1-7)"
           if [[ "${{ github.ref }}" =~ ^refs/tags/v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
             MAJOR="${BASH_REMATCH[1]}"
             MINOR="${BASH_REMATCH[2]}"
             PATCH="${BASH_REMATCH[3]}"
-            TAGS="$TAGS v${MAJOR}.${MINOR}.${PATCH} v${MAJOR}.${MINOR} v${MAJOR}"
+            TAGS="v${MAJOR}.${MINOR}.${PATCH} v${MAJOR}.${MINOR} v${MAJOR} ${SHORT_SHA}"
+          else
+            TAGS="latest ${SHORT_SHA}"
           fi
           echo "tags=$TAGS" >> "$GITHUB_OUTPUT"
 
