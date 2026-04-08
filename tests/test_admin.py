@@ -12,6 +12,7 @@ from app.models import User
 if TYPE_CHECKING:
     from httpx import AsyncClient
     from sqlalchemy.ext.asyncio import AsyncSession
+
     from tests.conftest import _AuthOverrider
 
 pytestmark = pytest.mark.asyncio

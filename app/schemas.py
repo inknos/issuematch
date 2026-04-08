@@ -3,35 +3,55 @@
 from __future__ import annotations
 
 from datetime import datetime  # noqa: TC003 — Pydantic needs this at runtime
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
+
+Ranking = Annotated[
+    int,
+    Field(
+        ge=-3,
+        le=3,
+        description="Sentiment score from -3 (strong reject) to +3 (strong accept);"
+        " 0 is not allowed.",
+    ),
+]
 
 
-class VoteOut(BaseModel):
+class _RankingValidator:
+    @field_validator("ranking")
+    @classmethod
+    def ranking_not_zero(cls, v: int | None) -> int | None:
+        if v == 0:
+            msg = "ranking must not be 0"
+            raise ValueError(msg)
+        return v
+
+
+class VoteOut(_RankingValidator, BaseModel):
     """Read-only representation of a persisted vote."""
 
     id: int
     user_id: int
     issue_id: str
-    ranking: int | None
+    ranking: Ranking | None
     created_at: datetime
 
     model_config = {"from_attributes": True}
 
 
-class VoteCreate(BaseModel):
+class VoteCreate(_RankingValidator, BaseModel):
     """Payload for creating a new vote."""
 
     issue_id: str
-    ranking: int | None = None
+    ranking: Ranking | None = None
 
 
-class VoteUpdate(BaseModel):
+class VoteUpdate(_RankingValidator, BaseModel):
     """Payload for updating an existing vote's ranking."""
 
     issue_id: str
-    ranking: int | None
+    ranking: Ranking | None
 
 
 class PaginatedVotes(BaseModel):
