@@ -17,6 +17,7 @@ spec:
       containers:
         - name: inknos-issuematch
           image: ghcr.io/inknos/issuematch:v0
+          imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
