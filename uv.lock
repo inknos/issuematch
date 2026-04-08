@@ -1193,7 +1193,7 @@ wheels = [
 
 [[package]]
 name = "issuematch"
-version = "0.5.3"
+version = "0.6.0"
 source = { editable = "." }
 dependencies = [
     { name = "alembic" },
