@@ -3,7 +3,7 @@ authors = [
     { name = "Nicola Sella", email = "nsella@redhat.com" },
 ]
 name = "issuematch"
-version = "0.5.2"
+version = "0.5.3"
 description = "Rank GitHub issues with your team"
 requires-python = ">=3.11"
 dependencies = [
@@ -135,7 +135,7 @@ convention = "google"
 
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "0.5.2"
+version = "0.5.3"
 version_files = [
     "pyproject.toml:^version",
     "app/version.py:^__version__",
