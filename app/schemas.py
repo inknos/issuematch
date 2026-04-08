@@ -139,8 +139,8 @@ class FetchResult(BaseModel):
     repo: str
 
 
-class IssueOut(BaseModel):
-    """Read-only representation of a stored GitHub issue."""
+class IssueSummaryOut(BaseModel):
+    """Lightweight issue representation for listings (no body/labels)."""
 
     id: str
     org: str
@@ -148,9 +148,7 @@ class IssueOut(BaseModel):
     number: int
     type: str
     title: str
-    body: str | None
     url: str
-    labels: list | None
     state: str
     created_at: datetime | None
     fetched_at: datetime
@@ -158,8 +156,24 @@ class IssueOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class IssueOut(IssueSummaryOut):
+    """Full issue representation including body and labels."""
+
+    body: str | None
+    labels: list | None
+
+
+class PaginatedIssueSummaries(BaseModel):
+    """Paginated envelope for summary issue listings."""
+
+    items: list[IssueSummaryOut]
+    total: int
+    page: int
+    per_page: int
+
+
 class PaginatedIssues(BaseModel):
-    """Paginated envelope for issue listings."""
+    """Paginated envelope for full issue listings."""
 
     items: list[IssueOut]
     total: int

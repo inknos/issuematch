@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Annotated
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import delete, func, select
@@ -64,7 +64,7 @@ from app.schemas import (
     FetchResult,
     IssueOut,
     PaginatedAuditLog,
-    PaginatedIssues,
+    PaginatedIssueSummaries,
     PaginatedResults,
     PaginatedVotes,
     PasswordUpdate,
@@ -275,8 +275,8 @@ async def vote_done(request: Request) -> HTMLResponse:
 async def activity_page(
     request: Request,
     session: SessionDep,
-    page: int = 1,
-    per_page: int = 20,
+    page: Annotated[int, Query(ge=1)] = 1,
+    per_page: Annotated[int, Query(ge=1, le=100)] = 20,
     action_type: str | None = None,
     user_id: int | None = None,
 ) -> HTMLResponse:
@@ -341,8 +341,8 @@ async def results_page(
     session: SessionDep,
     sort_by: str = "avg_ranking",
     order: str = "desc",
-    page: int = 1,
-    per_page: int = 20,
+    page: Annotated[int, Query(ge=1)] = 1,
+    per_page: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> HTMLResponse:
     """Render the sortable, paginated results table."""
     uid = current_user_id(request)
@@ -386,7 +386,7 @@ async def results_page(
 
 @router.get(
     "/api/issues/json",
-    response_model=PaginatedIssues,
+    response_model=PaginatedIssueSummaries,
     tags=["api"],
     operation_id="list_issues",
 )
@@ -396,8 +396,8 @@ async def list_issues(
     repo: str | None = None,
     item_type: str | None = None,
     state: str | None = None,
-    page: int = 1,
-    per_page: int = 20,
+    page: Annotated[int, Query(ge=1)] = 1,
+    per_page: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> dict:
     """Return a paginated, filterable list of stored issues (public)."""
     base = select(Issue)
@@ -455,8 +455,8 @@ async def list_results(
     session: SessionDep,
     sort_by: str = "avg_ranking",
     order: str = "desc",
-    page: int = 1,
-    per_page: int = 20,
+    page: Annotated[int, Query(ge=1)] = 1,
+    per_page: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> dict:
     """Return paginated average rankings per issue (public)."""
     rows, total = await _results_query(
@@ -576,8 +576,8 @@ async def list_votes(
     org: str | None = None,
     repo: str | None = None,
     user_id: int | None = None,
-    page: int = 1,
-    per_page: int = 20,
+    page: Annotated[int, Query(ge=1)] = 1,
+    per_page: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> dict:
     """Return a paginated, filterable list of votes (contributor+)."""
     base = select(Vote)
@@ -749,8 +749,8 @@ async def list_activity(
     caller_uid: MaintainerUid,  # noqa: ARG001
     session: SessionDep,
     user_id: int | None = None,
-    page: int = 1,
-    per_page: int = 20,
+    page: Annotated[int, Query(ge=1)] = 1,
+    per_page: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> dict:
     """Return a paginated, optionally user-filtered activity log (maintainer+)."""
     base = select(AuditLog)
