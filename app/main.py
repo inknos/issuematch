@@ -14,14 +14,14 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi_mcp import FastApiMCP
-from sqlalchemy import select
+from sqlalchemy import select, text
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.auth import router as auth_router
 from app.config import SESSION_SECRET, validate_secrets
 from app.crypto import hash_api_token
-from app.database import async_session
+from app.database import SessionDep, async_session
 from app.errors import AppError
 from app.models import ApiToken
 from app.routes import router as routes_router
@@ -96,6 +96,24 @@ mcp = FastApiMCP(
     include_tags=["api"],
 )
 mcp.mount_http()
+
+
+@app.get("/ping", tags=["api"])
+async def ping(session: SessionDep) -> dict:
+    """Return app version and database server version."""
+    db_version = None
+    db_error = None
+    try:
+        result = await session.execute(text("SELECT version()"))
+        db_version = result.scalar()
+    except Exception as exc:  # noqa: BLE001
+        db_error = str(exc)
+    return {
+        "status": "ok",
+        "app_version": __version__,
+        "db_version": db_version,
+        "db_error": db_error,
+    }
 
 
 @app.get("/", response_class=HTMLResponse)
