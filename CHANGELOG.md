@@ -1,3 +1,9 @@
+## v0.5.2 (2026-04-08)
+
+### Fix
+
+- removed placeholder for dev secrets
+
 ## v0.5.1 (2026-04-02)
 
 ### Fix
